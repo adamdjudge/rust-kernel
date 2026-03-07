@@ -1,10 +1,9 @@
 #![no_std]
 #![no_main]
 
-mod gdt;
 mod console;
 mod paging;
-mod io;
+mod x86;
 
 use core::arch::{asm, global_asm};
 use core::fmt::Write;
@@ -38,7 +37,7 @@ global_asm!(
 
 #[unsafe(no_mangle)]
 fn main() -> ! {
-    gdt::init();
+    x86::gdt::init();
     paging::init();
 
     let writer = Writer::get();

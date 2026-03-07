@@ -2,7 +2,7 @@ use core::fmt;
 use core::fmt::Write;
 use core::mem;
 
-use crate::io;
+use crate::x86::io;
 
 /// Console width in characters.
 pub const WIDTH: usize = 80;

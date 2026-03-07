@@ -1,8 +1,8 @@
 use core::arch::asm;
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 #[repr(C)]
-struct GdtEntry {
+pub struct GdtEntry {
     limit_lo: u16,
     base_lo: u16,
     base_mid: u8,
@@ -12,7 +12,7 @@ struct GdtEntry {
 }
 
 impl GdtEntry {
-    const fn missing() -> Self {
+    pub const fn missing() -> Self {
         Self {
             limit_lo: 0,
             base_lo: 0,
@@ -23,64 +23,58 @@ impl GdtEntry {
         }
     }
 
-    fn set_kernel_code(&mut self) -> &mut Self {
+    pub fn set_kernel_code(&mut self) -> &mut Self {
         self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
         self.access = 0x9b;
         self
     }
 
-    fn set_kernel_data(&mut self) -> &mut Self {
+    pub fn set_kernel_data(&mut self) -> &mut Self {
         self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
         self.access = 0x93;
         self
     }
 
-    fn set_user_code(&mut self) -> &mut Self {
+    pub fn set_user_code(&mut self) -> &mut Self {
         self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
         self.access = 0xfb;
         self
     }
 
-    fn set_user_data(&mut self) -> &mut Self {
+    pub fn set_user_data(&mut self) -> &mut Self {
         self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
         self.access = 0xf3;
         self
     }
 
-    fn set_tss(&mut self) -> &mut Self {
+    pub fn set_tss(&mut self) -> &mut Self {
         self.limit_hi_flags &= 0x0f;
         self.access = 0x89;
         self
     }
 
-    fn set_base(&mut self, base: u32) -> &mut Self {
+    pub fn set_base(&mut self, base: u32) -> &mut Self {
         self.base_lo = base as u16;
         self.base_mid = (base >> 16) as u8;
         self.base_hi = (base >> 24) as u8;
         self
     }
 
-    fn set_limit(&mut self, limit: u32) -> &mut Self {
+    pub fn set_limit(&mut self, limit: u32) -> &mut Self {
         self.limit_lo = limit as u16;
         self.limit_hi_flags = self.limit_hi_flags & 0xf0 | (limit >> 16) as u8;
         self
     }
 }
 
-pub const KERNEL_CS: u16 = 0x0008;
-pub const KERNEL_DS: u16 = 0x0010;
-pub const USER_CS: u16 = 0x0018;
-pub const USER_DS: u16 = 0x0020;
-pub const KERNEL_TS: u16 = 0x0028;
-
 #[repr(C)]
-struct Gdt {
-    null_segment: GdtEntry,
-    kernel_code: GdtEntry,
-    kernel_data: GdtEntry,
-    user_code: GdtEntry,
-    user_data: GdtEntry,
-    tss: GdtEntry,
+pub struct Gdt {
+    pub null_segment: GdtEntry,
+    pub kernel_code: GdtEntry,
+    pub kernel_data: GdtEntry,
+    pub user_code: GdtEntry,
+    pub user_data: GdtEntry,
+    pub tss: GdtEntry,
 }
 
 #[repr(packed)]
@@ -94,7 +88,7 @@ struct GdtDescriptor {
 static mut GDT_DESC: GdtDescriptor = GdtDescriptor { size: 0, base: 0 };
 
 impl Gdt {
-    const fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             null_segment: GdtEntry::missing(),
             kernel_code: GdtEntry::missing(),
@@ -105,7 +99,7 @@ impl Gdt {
         }
     }
 
-    fn load(&'static self) {
+    pub fn load(&'static self) {
         unsafe {
             GDT_DESC.size = size_of::<Gdt>() as u16 - 1;
             GDT_DESC.base = &raw const *self as u32;
@@ -118,8 +112,8 @@ impl Gdt {
                 mov {1:x}, %es
                 mov {1:x}, %fs
                 mov {1:x}, %gs",
-                const KERNEL_CS,
-                in(reg) KERNEL_DS,
+                const offset_of!(Gdt, kernel_code),
+                in(reg) offset_of!(Gdt, kernel_data),
                 options(att_syntax)
             );
         }
