@@ -4,13 +4,18 @@ pub mod gdt;
 pub mod io;
 
 /// CPU privilege level. Ring 0 is used by the kernel and ring 3 is used by userspace.
-#[allow(unused)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PrivilegeLevel {
+    /// The most privileged mode, used by the kernel.
     Ring0,
+
+    #[allow(unused)]
     Ring1,
+    #[allow(unused)]
     Ring2,
+
+    /// The least privileged mode, used by userspace.
     Ring3,
 }
 
@@ -30,7 +35,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's kernel code segment.
     pub const fn kernel_code() -> Self {
         Self::new(
-            mem::offset_of!(gdt::Gdt, kernel_code) as u16,
+            mem::offset_of!(gdt::GlobalDescriptorTable, kernel_code) as u16,
             PrivilegeLevel::Ring0,
         )
     }
@@ -38,7 +43,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's kernel data segment.
     pub const fn kernel_data() -> Self {
         Self::new(
-            mem::offset_of!(gdt::Gdt, kernel_data) as u16,
+            mem::offset_of!(gdt::GlobalDescriptorTable, kernel_data) as u16,
             PrivilegeLevel::Ring0,
         )
     }
@@ -46,7 +51,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's user code segment.
     pub const fn user_code() -> Self {
         Self::new(
-            mem::offset_of!(gdt::Gdt, user_code) as u16,
+            mem::offset_of!(gdt::GlobalDescriptorTable, user_code) as u16,
             PrivilegeLevel::Ring3,
         )
     }
@@ -54,8 +59,16 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's user data segment.
     pub const fn user_data() -> Self {
         Self::new(
-            mem::offset_of!(gdt::Gdt, user_data) as u16,
+            mem::offset_of!(gdt::GlobalDescriptorTable, user_data) as u16,
             PrivilegeLevel::Ring3,
+        )
+    }
+
+    /// Returns the segment selector for the GDT's task state segment.
+    pub const fn tss() -> Self {
+        Self::new(
+            mem::offset_of!(gdt::GlobalDescriptorTable, tss) as u16,
+            PrivilegeLevel::Ring0,
         )
     }
 
@@ -80,7 +93,7 @@ impl SegmentSelector {
         unsafe { mem::transmute((self.0 & 0x3) as u8) }
     }
 
-    /// Returns whether the segment belongs to the kernel (privilege level is ring 0).
+    /// Checks whether the segment belongs to the kernel (privilege level is ring 0).
     pub fn is_kernel(&self) -> bool {
         self.dpl() == PrivilegeLevel::Ring0
     }
@@ -97,9 +110,19 @@ impl VirtAddr {
         Self(addr)
     }
 
-    /// Returns the raw u32 value of a virtual address.
+    /// Creates a null virtual address.
+    pub const fn null() -> Self {
+        Self(0)
+    }
+
+    /// Returns the raw u32 address value.
     pub fn as_u32(&self) -> u32 {
         self.0
+    }
+
+    /// Checks whether the address is null.
+    pub fn is_null(&self) -> bool {
+        self.0 == 0
     }
 }
 
@@ -109,13 +132,23 @@ impl VirtAddr {
 pub struct PhysAddr(u32);
 
 impl PhysAddr {
-    /// Creates a new physical address from a raw u32 value.
+    /// Creates a physical address from a raw u32 value.
     pub const fn new(addr: u32) -> Self {
         Self(addr)
     }
 
-    /// Returns the raw u32 value of a physical address.
+    /// Creates a null physical address.
+    pub const fn null() -> Self {
+        Self(0)
+    }
+
+    /// Returns the raw u32 address value.
     pub fn as_u32(&self) -> u32 {
         self.0
+    }
+
+    /// Checks whether the address is null.
+    pub fn is_null(&self) -> bool {
+        self.0 == 0
     }
 }

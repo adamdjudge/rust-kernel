@@ -1,7 +1,11 @@
 use core::arch::asm;
 use core::mem::{offset_of, size_of};
 
+use crate::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
+
+/// Entry in the Global Descriptor Table specifying a protected mode segment.
 #[repr(C)]
+#[repr(align(8))]
 pub struct GdtEntry {
     limit_lo: u16,
     base_lo: u16,
@@ -12,7 +16,8 @@ pub struct GdtEntry {
 }
 
 impl GdtEntry {
-    pub const fn missing() -> Self {
+    /// Returns an empty GDT entry that does not represent any valid segment.
+    pub const fn null() -> Self {
         Self {
             limit_lo: 0,
             base_lo: 0,
@@ -23,52 +28,50 @@ impl GdtEntry {
         }
     }
 
-    pub fn set_kernel_code(&mut self) -> &mut Self {
-        self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
-        self.access = 0x9b;
-        self
+    /// Returns a GDT entry for a code segment with the given privilege level. The segment covers
+    /// the entire address space.
+    pub const fn code_segment(dpl: PrivilegeLevel) -> Self {
+        Self {
+            limit_lo: 0xffff,
+            base_lo: 0,
+            base_mid: 0,
+            access: 0x9b | (dpl as u8) << 5,
+            limit_hi_flags: 0xcf,
+            base_hi: 0,
+        }
     }
 
-    pub fn set_kernel_data(&mut self) -> &mut Self {
-        self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
-        self.access = 0x93;
-        self
+    /// Returns a GDT entry for a data segment with the given privilege level. The segment covers
+    /// the entire address space.
+    pub const fn data_segment(dpl: PrivilegeLevel) -> Self {
+        Self {
+            limit_lo: 0xffff,
+            base_lo: 0,
+            base_mid: 0,
+            access: 0x93 | (dpl as u8) << 5,
+            limit_hi_flags: 0xcf,
+            base_hi: 0,
+        }
     }
 
-    pub fn set_user_code(&mut self) -> &mut Self {
-        self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
-        self.access = 0xfb;
-        self
-    }
-
-    pub fn set_user_data(&mut self) -> &mut Self {
-        self.limit_hi_flags = self.limit_hi_flags & 0x0f | 0xc0;
-        self.access = 0xf3;
-        self
-    }
-
-    pub fn set_tss(&mut self) -> &mut Self {
-        self.limit_hi_flags &= 0x0f;
-        self.access = 0x89;
-        self
-    }
-
-    pub fn set_base(&mut self, base: u32) -> &mut Self {
-        self.base_lo = base as u16;
-        self.base_mid = (base >> 16) as u8;
-        self.base_hi = (base >> 24) as u8;
-        self
-    }
-
-    pub fn set_limit(&mut self, limit: u32) -> &mut Self {
-        self.limit_lo = limit as u16;
-        self.limit_hi_flags = self.limit_hi_flags & 0xf0 | (limit >> 16) as u8;
-        self
+    /// Returns a GDT entry for a ring 0 TSS segment pointing to the given static TSS structure.
+    pub fn tss_segment(tss: &'static TaskStateSegment) -> Self {
+        let base = tss as *const TaskStateSegment as u32;
+        Self {
+            limit_lo: size_of::<TaskStateSegment>() as u16 - 1,
+            base_lo: base as u16,
+            base_mid: (base >> 16) as u8,
+            access: 0x89,
+            limit_hi_flags: 0x40,
+            base_hi: (base >> 24) as u8,
+        }
     }
 }
 
+/// Global Descriptor Table, necessary for x86 protected mode. This struct contains entries for
+/// kernel and user code and data segments, as well as a TSS segment.
 #[repr(C)]
-pub struct Gdt {
+pub struct GlobalDescriptorTable {
     pub null_segment: GdtEntry,
     pub kernel_code: GdtEntry,
     pub kernel_data: GdtEntry,
@@ -78,84 +81,84 @@ pub struct Gdt {
 }
 
 #[repr(packed)]
-struct GdtDescriptor {
+struct GdtPointer {
+    #[allow(unused)]
     size: u16,
     base: u32,
 }
 
 // We need a static GDT descriptor because the lgdt instruction can only use an absolute address.
 #[unsafe(no_mangle)]
-static mut GDT_DESC: GdtDescriptor = GdtDescriptor { size: 0, base: 0 };
+static mut GDT_PTR: GdtPointer = GdtPointer {
+    size: size_of::<GlobalDescriptorTable>() as u16 - 1,
+    base: 0,
+};
 
-impl Gdt {
-    pub const fn empty() -> Self {
+impl GlobalDescriptorTable {
+    /// Returns a new global descriptor table with no entries set.
+    pub const fn new() -> Self {
         Self {
-            null_segment: GdtEntry::missing(),
-            kernel_code: GdtEntry::missing(),
-            kernel_data: GdtEntry::missing(),
-            user_code: GdtEntry::missing(),
-            user_data: GdtEntry::missing(),
-            tss: GdtEntry::missing(),
+            null_segment: GdtEntry::null(),
+            kernel_code: GdtEntry::null(),
+            kernel_data: GdtEntry::null(),
+            user_code: GdtEntry::null(),
+            user_data: GdtEntry::null(),
+            tss: GdtEntry::null(),
         }
     }
 
+    /// Uses the lgdt instruction to load the global descriptor table, as well as set the segment
+    /// registers to select kernel_code and kernel_data.
     pub fn load(&'static self) {
         unsafe {
-            GDT_DESC.size = size_of::<Gdt>() as u16 - 1;
-            GDT_DESC.base = &raw const *self as u32;
-
+            GDT_PTR.base = &raw const *self as u32;
             asm!(
-                "lgdt GDT_DESC
-                jmpl ${0}, $2f
-                2: mov {1:x}, %ds
-                mov {1:x}, %ss
-                mov {1:x}, %es
-                mov {1:x}, %fs
-                mov {1:x}, %gs",
-                const offset_of!(Gdt, kernel_code),
-                in(reg) offset_of!(Gdt, kernel_data),
+                "lgdt GDT_PTR",
+                "jmpl ${0}, $2f",
+                "2: mov {1:x}, %ds",
+                "mov {1:x}, %ss",
+                "mov {1:x}, %es",
+                "mov {1:x}, %fs",
+                "mov {1:x}, %gs",
+                const offset_of!(Self, kernel_code),
+                in(reg) offset_of!(Self, kernel_data),
                 options(att_syntax)
             );
         }
     }
 }
 
-static mut GDT: Gdt = Gdt::empty();
-
+/// Task State Segment, necessary for x86 multitasking. Only the SS0 and ESP0 fields are needed, as
+/// they define the stack segment and pointer to load on switch from user mode to kernel mode.
 #[repr(C)]
-struct Tss {
+pub struct TaskStateSegment {
     unused0: u32,
-    esp0: u32,
-    ss0: u16,
+
+    /// New stack pointer loaded upon privilege escalation to ring 0.
+    pub esp0: VirtAddr,
+
+    /// Stack segment loaded upon privilege escalation to ring 0.
+    pub ss0: SegmentSelector,
+
     unused: [u8; 98],
 }
 
-impl Tss {
-    const fn empty() -> Self {
+impl TaskStateSegment {
+    /// Returns a new task state segment. ss0 is initialized to the kernel data segment, but esp0 is
+    /// not set.
+    pub const fn new() -> Self {
         Self {
             unused0: 0,
-            esp0: 0,
-            ss0: 0,
+            esp0: VirtAddr::null(),
+            ss0: SegmentSelector::kernel_data(),
             unused: [0; 98],
         }
     }
-}
 
-static mut TSS: Tss = Tss::empty();
-
-pub fn init() {
-    // SAFETY: We only need to touch the GDT during initialization, when there is no multitasking,
-    // so let's not bother wrapping it in a mutex.
-    let gdt = unsafe { &mut *(&raw mut GDT) };
-
-    gdt.kernel_code.set_kernel_code().set_limit(0xfffff);
-    gdt.kernel_data.set_kernel_data().set_limit(0xfffff);
-    gdt.user_code.set_user_code().set_limit(0xfffff);
-    gdt.user_data.set_user_data().set_limit(0xfffff);
-    gdt.tss
-        .set_tss()
-        .set_base(&raw const TSS as u32)
-        .set_limit(size_of::<Tss>() as u32 - 1);
-
-    gdt.load();
+    /// Uses the ltr instruction to load the task state segment.
+    pub fn load(&'static self) {
+        unsafe {
+            asm!("ltr ax", in("eax") SegmentSelector::tss().as_u16());
+        }
+    }
 }

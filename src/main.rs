@@ -10,6 +10,8 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use crate::console::{Color, Writer};
+use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
+use crate::x86::PrivilegeLevel;
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
 // for the rest of the initialization code, and then jump to the Rust main function.
@@ -35,9 +37,27 @@ global_asm!(
     options(att_syntax)
 );
 
+// TODO: wrap these in a mutex or something to be more idiomatic
+static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
+static mut TSS: TaskStateSegment = TaskStateSegment::new();
+
+fn init_segments() {
+    let gdt = unsafe { &mut *(&raw mut GDT) };
+    let tss = unsafe { &mut *(&raw mut TSS) };
+
+    gdt.kernel_code = GdtEntry::code_segment(PrivilegeLevel::Ring0);
+    gdt.kernel_data = GdtEntry::data_segment(PrivilegeLevel::Ring0);
+    gdt.user_code = GdtEntry::code_segment(PrivilegeLevel::Ring3);
+    gdt.user_data = GdtEntry::data_segment(PrivilegeLevel::Ring3);
+    gdt.tss = GdtEntry::tss_segment(tss);
+
+    gdt.load();
+    tss.load();
+}
+
 #[unsafe(no_mangle)]
 fn main() -> ! {
-    x86::gdt::init();
+    init_segments();
     paging::init();
 
     let writer = Writer::get();
