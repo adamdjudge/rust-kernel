@@ -2,7 +2,7 @@ use core::fmt;
 use core::fmt::Write;
 use core::mem;
 
-use crate::x86::io;
+use crate::x86::port::Port;
 
 /// Console width in characters.
 pub const WIDTH: usize = 80;
@@ -63,11 +63,14 @@ impl VgaBuffer {
     }
 
     fn update_cursor(position: usize) {
+        let vga_reg_select: Port<u8> = Port::new(0x3d4);
+        let vga_reg_value: Port<u8> = Port::new(0x3d5);
+
         unsafe {
-            io::out8(0x3d4, 0xf);
-            io::out8(0x3d5, (position & 0xff) as u8);
-            io::out8(0x3d4, 0xe);
-            io::out8(0x3d5, ((position >> 8) & 0xff) as u8);
+            vga_reg_select.write(0xf);
+            vga_reg_value.write((position & 0xff) as u8);
+            vga_reg_select.write(0xe);
+            vga_reg_value.write(((position >> 8) & 0xff) as u8);
         }
     }
 }

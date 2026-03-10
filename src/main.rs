@@ -43,7 +43,7 @@ static mut TSS: TaskStateSegment = TaskStateSegment::new();
 
 fn init_segments() {
     let gdt = unsafe { &mut *(&raw mut GDT) };
-    let tss = unsafe { &mut *(&raw mut TSS) };
+    let tss = unsafe { &*(&raw const TSS) };
 
     gdt.kernel_code = GdtEntry::code_segment(PrivilegeLevel::Ring0);
     gdt.kernel_data = GdtEntry::data_segment(PrivilegeLevel::Ring0);

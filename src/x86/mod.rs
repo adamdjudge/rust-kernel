@@ -1,7 +1,8 @@
 use core::mem;
 
 pub mod gdt;
-pub mod io;
+pub mod instructions;
+pub mod port;
 
 /// CPU privilege level. Ring 0 is used by the kernel and ring 3 is used by userspace.
 #[derive(Clone, Copy, PartialEq, Eq)]

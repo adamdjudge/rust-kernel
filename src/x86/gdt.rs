@@ -157,8 +157,6 @@ impl TaskStateSegment {
 
     /// Uses the ltr instruction to load the task state segment.
     pub fn load(&'static self) {
-        unsafe {
-            asm!("ltr ax", in("eax") SegmentSelector::tss().as_u16());
-        }
+        crate::x86::instructions::ltr(SegmentSelector::tss());
     }
 }
