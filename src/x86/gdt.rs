@@ -55,7 +55,7 @@ impl GdtEntry {
     }
 
     /// Returns a GDT entry for a ring 0 TSS segment pointing to the given static TSS structure.
-    pub fn tss_segment(tss: &'static TaskStateSegment) -> Self {
+    pub fn tss(tss: &'static TaskStateSegment) -> Self {
         let base = tss as *const TaskStateSegment as u32;
         Self {
             limit_lo: size_of::<TaskStateSegment>() as u16 - 1,
@@ -95,18 +95,6 @@ static mut GDT_PTR: GdtPointer = GdtPointer {
 };
 
 impl GlobalDescriptorTable {
-    /// Returns a new global descriptor table with no entries set.
-    pub const fn new() -> Self {
-        Self {
-            null_segment: GdtEntry::null(),
-            kernel_code: GdtEntry::null(),
-            kernel_data: GdtEntry::null(),
-            user_code: GdtEntry::null(),
-            user_data: GdtEntry::null(),
-            tss: GdtEntry::null(),
-        }
-    }
-
     /// Uses the lgdt instruction to load the global descriptor table, as well as set the segment
     /// registers to select kernel_code and kernel_data.
     pub fn load(&'static self) {

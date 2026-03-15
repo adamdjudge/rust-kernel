@@ -3,6 +3,7 @@
 
 mod console;
 mod paging;
+mod sync;
 mod x86;
 
 use core::arch::{asm, global_asm};
@@ -10,6 +11,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use crate::console::{Color, Writer};
+use crate::sync::Initializer;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
 use crate::x86::PrivilegeLevel;
 
@@ -37,21 +39,23 @@ global_asm!(
     options(att_syntax)
 );
 
-// TODO: wrap these in a mutex or something to be more idiomatic
-static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
+static GDT: Initializer<GlobalDescriptorTable> = Initializer::new();
+
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
 
 fn init_segments() {
-    let gdt = unsafe { &mut *(&raw mut GDT) };
     let tss = unsafe { &*(&raw const TSS) };
 
-    gdt.kernel_code = GdtEntry::code_segment(PrivilegeLevel::Ring0);
-    gdt.kernel_data = GdtEntry::data_segment(PrivilegeLevel::Ring0);
-    gdt.user_code = GdtEntry::code_segment(PrivilegeLevel::Ring3);
-    gdt.user_data = GdtEntry::data_segment(PrivilegeLevel::Ring3);
-    gdt.tss = GdtEntry::tss_segment(tss);
+    GDT.initialize(|| GlobalDescriptorTable {
+        null_segment: GdtEntry::null(),
+        kernel_code: GdtEntry::code_segment(PrivilegeLevel::Ring0),
+        kernel_data: GdtEntry::data_segment(PrivilegeLevel::Ring0),
+        user_code: GdtEntry::code_segment(PrivilegeLevel::Ring3),
+        user_data: GdtEntry::data_segment(PrivilegeLevel::Ring3),
+        tss: GdtEntry::tss(tss),
+    });
 
-    gdt.load();
+    GDT.get_ref().load();
     tss.load();
 }
 
