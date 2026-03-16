@@ -7,10 +7,8 @@ mod sync;
 mod x86;
 
 use core::arch::{asm, global_asm};
-use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use crate::console::{Color, Writer};
 use crate::sync::Initializer;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
 use crate::x86::PrivilegeLevel;
@@ -63,9 +61,7 @@ fn init_segments() {
 fn main() -> ! {
     init_segments();
     paging::init();
-
-    let writer = Writer::get();
-    writer.clear_screen();
+    console::clear();
 
     println!("Hello from Rust kernel!");
     println!("Memory in use: {} KB", paging::mem_used() / 1024);
@@ -80,20 +76,15 @@ fn main() -> ! {
 #[panic_handler]
 #[inline(never)]
 fn panic(info: &PanicInfo) -> ! {
-    let mut writer = Writer::get();
-    writer.set_bg_color(Color::Black);
-    writer.set_text_color(Color::LightRed);
-
     if let Some(location) = info.location() {
-        let _ = write!(
-            &mut writer,
+        print!(
             "\nkernel panic at {}:{} - {}",
             location.file(),
             location.line(),
             info.message()
         );
     } else {
-        let _ = write!(&mut writer, "\nkernel panic - {}", info.message());
+        print!("\nkernel panic - {}", info.message());
     }
 
     loop {

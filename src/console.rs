@@ -2,6 +2,7 @@ use core::fmt;
 use core::fmt::Write;
 use core::mem;
 
+use crate::sync::Mutex;
 use crate::x86::port::PortU8;
 
 /// Console width in characters.
@@ -76,27 +77,16 @@ impl VgaBuffer {
 }
 
 /// Handle used for writing text to the VGA console.
-pub struct Writer {
+struct Writer {
     position: usize,
     attrs: u8,
 }
 
-// TODO: wrap in mutex
-static mut WRITER: Writer = Writer {
-    position: 0,
-    attrs: Color::LightGray as u8,
-};
-
 #[allow(dead_code)]
 impl Writer {
-    /// Returns a mutable reference to the global console writer.
-    pub fn get() -> &'static mut Self {
-        unsafe { &mut *(&raw mut WRITER) }
-    }
-
     /// Sets the current position of the console cursor. Returns `Ok` if the given cursor position
     /// is within bounds (`pos < SIZE`), otherwise returns `Err(pos)` and has no effect.
-    pub fn set_position(&mut self, pos: usize) -> Result<(), usize> {
+    fn set_position(&mut self, pos: usize) -> Result<(), usize> {
         match pos {
             0..SIZE => {
                 self.position = pos;
@@ -108,17 +98,17 @@ impl Writer {
     }
 
     /// Returns the current position of the console cursor.
-    pub fn get_position(&self) -> usize {
+    fn get_position(&self) -> usize {
         self.position
     }
 
     /// Sets the text color for subsequent character writes to the console.
-    pub fn set_text_color(&mut self, color: Color) {
+    fn set_text_color(&mut self, color: Color) {
         self.attrs = self.attrs & 0xf0 | color as u8;
     }
 
     /// Sets the background color for subsequent character writes to the console.
-    pub fn set_bg_color(&mut self, color: Color) {
+    fn set_bg_color(&mut self, color: Color) {
         self.attrs = self.attrs & 0x0f | (color as u8) << 4;
     }
 
@@ -153,7 +143,7 @@ impl Writer {
     }
 
     /// Clears the console by removing all text and setting the default colors.
-    pub fn clear_screen(&mut self) {
+    fn clear_screen(&mut self) {
         self.position = 0;
         self.set_text_color(Color::LightGray);
         self.set_bg_color(Color::Black);
@@ -164,12 +154,13 @@ impl Writer {
     }
 
     /// Writes one character to the console.
-    pub fn put_char(&mut self, c: char) {
+    fn put_char(&mut self, c: char) {
         match c {
             '\0' => self.put_byte(0),
+            '\r' => self.set_position(self.position / WIDTH).unwrap(),
             '\n' => self.advance(WIDTH - self.position % WIDTH),
             ' '..='~' => self.put_byte(c as u8),
-            '\u{80}'.. => self.put_byte(0xfe),
+            '\u{80}'.. => self.put_byte(0xfe), // Block glyph for unknown char
             _ => {}
         }
     }
@@ -184,14 +175,26 @@ impl fmt::Write for Writer {
     }
 }
 
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
-    Writer::get().write_fmt(args).unwrap();
+static WRITER: Mutex<Writer> = Mutex::new(Writer {
+    position: 0,
+    attrs: Color::LightGray as u8,
+});
+
+pub fn clear() {
+    WRITER.with_locked(|writer| writer.clear_screen());
+}
+
+pub fn write(s: &str) {
+    WRITER.with_locked(|writer| writer.write_str(s).unwrap());
+}
+
+pub fn write_fmt(args: fmt::Arguments) {
+    WRITER.with_locked(|writer| writer.write_fmt(args).unwrap());
 }
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::console::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::console::write_fmt(format_args!($($arg)*)));
 }
 
 #[macro_export]
