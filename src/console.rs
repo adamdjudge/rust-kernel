@@ -166,39 +166,22 @@ impl Writer {
     }
 }
 
-impl fmt::Write for Writer {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for c in s.chars() {
-            self.put_char(c);
-        }
-        Ok(())
-    }
-}
-
 static WRITER: Mutex<Writer> = Mutex::new(Writer {
     position: 0,
     attrs: Color::LightGray as u8,
 });
 
+/// Clears the VGA console, resets the selected text and background colors to their defaults, and
+/// resets the cursor position.
 pub fn clear() {
     WRITER.with_locked(|writer| writer.clear_screen());
 }
 
+/// Writes a string to the VGA console.
 pub fn write(s: &str) {
-    WRITER.with_locked(|writer| writer.write_str(s).unwrap());
-}
-
-pub fn write_fmt(args: fmt::Arguments) {
-    WRITER.with_locked(|writer| writer.write_fmt(args).unwrap());
-}
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::console::write_fmt(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+    WRITER.with_locked(|writer| {
+        for c in s.chars() {
+            writer.put_char(c);
+        }
+    });
 }

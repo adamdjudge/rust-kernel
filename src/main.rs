@@ -2,16 +2,18 @@
 #![no_main]
 
 mod console;
+mod log;
 mod paging;
 mod sync;
 mod x86;
 
-use core::arch::{asm, global_asm};
+use core::arch::global_asm;
 use core::panic::PanicInfo;
 
 use crate::sync::Initializer;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
 use crate::x86::PrivilegeLevel;
+use crate::x86::instructions::{cli, hlt};
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
 // for the rest of the initialization code, and then jump to the Rust main function.
@@ -63,13 +65,11 @@ fn main() -> ! {
     paging::init();
     console::clear();
 
-    println!("Hello from Rust kernel!");
-    println!("Memory in use: {} KB", paging::mem_used() / 1024);
+    log_info!("Hello from Rust kernel!");
+    log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
 
     loop {
-        unsafe {
-            asm!("hlt");
-        }
+        hlt();
     }
 }
 
@@ -77,19 +77,18 @@ fn main() -> ! {
 #[inline(never)]
 fn panic(info: &PanicInfo) -> ! {
     if let Some(location) = info.location() {
-        print!(
+        log_error!(
             "\nkernel panic at {}:{} - {}",
             location.file(),
             location.line(),
             info.message()
         );
     } else {
-        print!("\nkernel panic - {}", info.message());
+        log_error!("\nkernel panic - {}", info.message());
     }
 
+    cli();
     loop {
-        unsafe {
-            asm!("hlt");
-        }
+        hlt();
     }
 }
