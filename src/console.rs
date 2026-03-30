@@ -1,5 +1,3 @@
-use core::fmt;
-use core::fmt::Write;
 use core::mem;
 
 use crate::sync::Mutex;
