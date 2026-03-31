@@ -24,6 +24,13 @@ pub fn sti() {
 }
 
 #[inline]
+pub fn int3() {
+    unsafe {
+        asm!("int3", options(nomem, nostack));
+    }
+}
+
+#[inline]
 pub fn ltr(segment: SegmentSelector) {
     unsafe {
         asm!("ltr ax", in("eax") segment.as_u16(), options(nomem, nostack, preserves_flags));

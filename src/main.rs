@@ -12,8 +12,9 @@ use core::panic::PanicInfo;
 
 use crate::sync::Initializer;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
+use crate::x86::idt::{IdtEntry, InterruptDescriptorTable};
+use crate::x86::instructions::{cli, hlt, int3};
 use crate::x86::PrivilegeLevel;
-use crate::x86::instructions::{cli, hlt};
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
 // for the rest of the initialization code, and then jump to the Rust main function.
@@ -43,6 +44,8 @@ static GDT: Initializer<GlobalDescriptorTable> = Initializer::new();
 
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
 
+static IDT: Initializer<InterruptDescriptorTable> = Initializer::new();
+
 fn init_segments() {
     let tss = unsafe { &*(&raw const TSS) };
 
@@ -59,6 +62,13 @@ fn init_segments() {
     tss.load();
 }
 
+extern "C" fn breakpoint() -> ! {
+    log_error!("caught breakpoint exception!");
+    loop {
+        cli();
+    }
+}
+
 #[unsafe(no_mangle)]
 fn main() -> ! {
     init_segments();
@@ -67,6 +77,15 @@ fn main() -> ! {
 
     log_info!("Hello from Rust kernel!");
     log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
+
+    IDT.initialize(|| {
+        let mut idt = InterruptDescriptorTable::default();
+        idt.breakpoint = IdtEntry::exception(PrivilegeLevel::Ring3, breakpoint);
+        idt
+    });
+    IDT.get_ref().load();
+
+    int3();
 
     loop {
         hlt();

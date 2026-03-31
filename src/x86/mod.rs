@@ -1,6 +1,7 @@
 use core::mem;
 
 pub mod gdt;
+pub mod idt;
 pub mod instructions;
 pub mod port;
 
@@ -22,7 +23,7 @@ pub enum PrivilegeLevel {
 
 /// Wrapper for protected mode segment selectors, which consist of an offset into the Global
 /// Descriptor Table and a privilege level, and are loaded into the segment registers.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[repr(transparent)]
 pub struct SegmentSelector(u16);
 
