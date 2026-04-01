@@ -12,7 +12,7 @@ use core::panic::PanicInfo;
 
 use crate::sync::Initializer;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
-use crate::x86::idt::{IdtEntry, InterruptDescriptorTable};
+use crate::x86::idt::{exception_handler, InterruptDescriptorTable, InterruptFrame};
 use crate::x86::instructions::{cli, hlt, int3};
 use crate::x86::PrivilegeLevel;
 
@@ -62,11 +62,9 @@ fn init_segments() {
     tss.load();
 }
 
-extern "C" fn breakpoint() -> ! {
+extern "C" fn breakpoint(frame: &InterruptFrame) {
     log_error!("caught breakpoint exception!");
-    loop {
-        cli();
-    }
+    log_error!("{:?}", frame);
 }
 
 #[unsafe(no_mangle)]
@@ -80,11 +78,13 @@ fn main() -> ! {
 
     IDT.initialize(|| {
         let mut idt = InterruptDescriptorTable::default();
-        idt.breakpoint = IdtEntry::exception(PrivilegeLevel::Ring3, breakpoint);
+        idt.breakpoint = exception_handler!(breakpoint);
         idt
     });
     IDT.get_ref().load();
 
+    int3();
+    int3();
     int3();
 
     loop {

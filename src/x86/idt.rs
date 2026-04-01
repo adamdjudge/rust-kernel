@@ -14,12 +14,12 @@ pub struct IdtEntry {
 }
 
 impl IdtEntry {
-    pub fn exception(dpl: PrivilegeLevel, handler: extern "C" fn() -> !) -> Self {
+    pub fn exception(handler: extern "C" fn() -> !) -> Self {
         Self {
             offset_lo: (handler as u32 & 0xffff) as u16,
             segment: SegmentSelector::kernel_code(),
             resvd: 0,
-            access: 0x8f | (dpl as u8) << 5,
+            access: 0x8f | (PrivilegeLevel::Ring3 as u8) << 5,
             offset_hi: (handler as u32 >> 16) as u16,
         }
     }
@@ -91,3 +91,73 @@ impl InterruptDescriptorTable {
         }
     }
 }
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptFrame {
+    pub ds: SegmentSelector,
+    pad0: u16,
+    pub edi: u32,
+    pub esi: u32,
+    pub ebp: u32,
+    _esp: u32,
+    pub ebx: u32,
+    pub edx: u32,
+    pub ecx: u32,
+    pub eax: u32,
+    pub err: u32,
+    pub eip: u32,
+    pub cs: SegmentSelector,
+    pad1: u16,
+    pub eflags: u32,
+    pub esp: u32,
+    pub ss: SegmentSelector,
+    pad2: u16,
+}
+
+macro_rules! exception_handler {
+    ($func:ident) => {{
+        use crate::x86::SegmentSelector;
+        use crate::x86::idt::IdtEntry;
+
+        #[unsafe(naked)]
+        extern "C" fn wrapper() -> ! {
+            core::arch::naked_asm!(
+                // Push dummy error code, since the CPU didn't push one.
+                "push $0",
+                // Save registers to the interrupt frame.
+                "pusha",
+                "mov %ds, %eax",
+                "push %eax",
+                // Set the data segment registers to the kernel data segment.
+                "mov ${kds}, %ax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                // Call the actual handler function, passing it a reference to the interrupt frame.
+                "push %esp",
+                "call {f}",
+                "add $4, %esp",
+                // Restore registers, including data segment registers.
+                "pop %eax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                "popa",
+                // Discard error code, since iret doesn't use it.
+                "add $4, %esp",
+                // Return from interrupt.
+                "iret",
+                kds = const SegmentSelector::kernel_data().as_u16(),
+                f = sym $func,
+                options(att_syntax)
+            );
+        }
+
+        IdtEntry::exception(wrapper)
+    }};
+}
+
+pub(crate) use exception_handler;
