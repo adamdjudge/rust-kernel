@@ -1,4 +1,5 @@
 use core::cell::UnsafeCell;
+use core::ops::Deref;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 /// A simple mutex implementation using a spin lock.
@@ -38,47 +39,39 @@ impl<T> Mutex<T> {
 
 unsafe impl<T> Sync for Mutex<T> {}
 
-/// A wrapper for anything that must be initialized once at runtime. `Initializer` is intended to be
-/// used for defining static objects that cannot be fully initialized at compile time.
-pub struct Initializer<T> {
+/// A wrapper for anything that must be initialized once at runtime, such as global statics that
+/// cannot be const initialized. It implements `Deref` to provide access to the inner `T` value.
+///
+/// `LazyInit<T>` is instantiated with a function that returns an initialized `T` value. This
+/// function is transparently called the first time any thread dereferences the instance at runtime,
+/// with an internal mutex ensuring that initialization occurs exactly once and that no thread
+/// obtains a `T` reference before initialization is completed.
+pub struct LazyInit<T> {
     inner: Mutex<Option<UnsafeCell<T>>>,
+    func: fn() -> T,
 }
 
-impl<T> Initializer<T> {
-    /// Creates a new `Initializer` wrapping an instance of `T`.
-    pub const fn new() -> Self {
+impl<T> LazyInit<T> {
+    /// Creates a new `LazyInit` instance, given a function that returns `T`. The function will be
+    /// called once to initialize the contained value the first time this instance is dereferenced.
+    pub const fn new(f: fn() -> T) -> Self {
         Self {
             inner: Mutex::new(None),
+            func: f,
         }
     }
+}
 
-    /// Initializes this instance by executing a function that returns the object to be stored
-    /// inside. This function may only be called once on any instance, and panics if called again on
-    /// an already initialized instance.
-    pub fn initialize<F>(&self, func: F)
-    where
-        F: FnOnce() -> T,
-    {
-        self.inner.with_locked(|inner| {
-            match inner {
-                Some(_) => panic!("tried to call initialize more than once"),
-                None => inner.insert(UnsafeCell::new(func())),
-            };
-        });
-    }
+impl<T> Deref for LazyInit<T> {
+    type Target = T;
 
-    /// Returns an immutable reference to the object contained within this `Initializer` instance.
-    /// Panics if this instance has not yet been initialized.
-    pub fn get_ref(&self) -> &T {
+    fn deref(&self) -> &Self::Target {
         self.inner.with_locked(|inner| {
-            match inner {
-                // SAFETY: The mutex ensures no other thread currently has a mutable reference, and
-                // if inner is Some then the contained value will never be mutated again.
-                Some(cell) => unsafe { &*cell.get() },
-                None => panic!("tried to call get_ref before initialization"),
-            }
+            let cell = inner.get_or_insert(UnsafeCell::new((self.func)()));
+            // SAFETY: Inner is guaranteed to be initialized here
+            unsafe { &*cell.get() }
         })
     }
 }
 
-unsafe impl<T> Sync for Initializer<T> {}
+unsafe impl<T> Sync for LazyInit<T> {}

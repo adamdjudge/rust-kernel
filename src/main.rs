@@ -10,7 +10,7 @@ mod x86;
 use core::arch::global_asm;
 use core::panic::PanicInfo;
 
-use crate::sync::Initializer;
+use crate::sync::LazyInit;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
 use crate::x86::idt::{exception_handler, InterruptDescriptorTable, InterruptFrame};
 use crate::x86::instructions::{cli, hlt, int3};
@@ -40,27 +40,22 @@ global_asm!(
     options(att_syntax)
 );
 
-static GDT: Initializer<GlobalDescriptorTable> = Initializer::new();
-
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
 
-static IDT: Initializer<InterruptDescriptorTable> = Initializer::new();
+static GDT: LazyInit<GlobalDescriptorTable> = LazyInit::new(|| GlobalDescriptorTable {
+    null_segment: GdtEntry::null(),
+    kernel_code: GdtEntry::code_segment(PrivilegeLevel::Ring0),
+    kernel_data: GdtEntry::data_segment(PrivilegeLevel::Ring0),
+    user_code: GdtEntry::code_segment(PrivilegeLevel::Ring3),
+    user_data: GdtEntry::data_segment(PrivilegeLevel::Ring3),
+    tss: GdtEntry::tss(unsafe { &*(&raw const TSS) }),
+});
 
-fn init_segments() {
-    let tss = unsafe { &*(&raw const TSS) };
-
-    GDT.initialize(|| GlobalDescriptorTable {
-        null_segment: GdtEntry::null(),
-        kernel_code: GdtEntry::code_segment(PrivilegeLevel::Ring0),
-        kernel_data: GdtEntry::data_segment(PrivilegeLevel::Ring0),
-        user_code: GdtEntry::code_segment(PrivilegeLevel::Ring3),
-        user_data: GdtEntry::data_segment(PrivilegeLevel::Ring3),
-        tss: GdtEntry::tss(tss),
-    });
-
-    GDT.get_ref().load();
-    tss.load();
-}
+static IDT: LazyInit<InterruptDescriptorTable> = LazyInit::new(|| {
+    let mut idt = InterruptDescriptorTable::default();
+    idt.breakpoint = exception_handler!(breakpoint);
+    idt
+});
 
 extern "C" fn breakpoint(frame: &InterruptFrame) {
     log_error!("caught breakpoint exception!");
@@ -69,19 +64,15 @@ extern "C" fn breakpoint(frame: &InterruptFrame) {
 
 #[unsafe(no_mangle)]
 fn main() -> ! {
-    init_segments();
+    GDT.load();
+    unsafe { &*(&raw const TSS) }.load();
+    IDT.load();
+
     paging::init();
     console::clear();
 
     log_info!("Hello from Rust kernel!");
     log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
-
-    IDT.initialize(|| {
-        let mut idt = InterruptDescriptorTable::default();
-        idt.breakpoint = exception_handler!(breakpoint);
-        idt
-    });
-    IDT.get_ref().load();
 
     int3();
     int3();
