@@ -5,8 +5,6 @@ pub mod idt;
 pub mod instructions;
 pub mod port;
 
-pub(crate) use idt::exception_handler;
-
 /// CPU privilege level. Ring 0 is used by the kernel and ring 3 is used by userspace.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]

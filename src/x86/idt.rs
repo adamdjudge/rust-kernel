@@ -14,7 +14,7 @@ pub struct IdtEntry {
 }
 
 impl IdtEntry {
-    pub fn exception(handler: extern "C" fn() -> !) -> Self {
+    pub fn trap_gate(handler: extern "C" fn() -> !) -> Self {
         Self {
             offset_lo: (handler as u32 & 0xffff) as u16,
             segment: SegmentSelector::kernel_code(),
@@ -24,7 +24,7 @@ impl IdtEntry {
         }
     }
 
-    pub fn interrupt(handler: extern "C" fn() -> !) -> Self {
+    pub fn interrupt_gate(handler: extern "C" fn() -> !) -> Self {
         Self {
             offset_lo: (handler as u32 & 0xffff) as u16,
             segment: SegmentSelector::kernel_code(),
@@ -156,8 +156,153 @@ macro_rules! exception_handler {
             );
         }
 
-        IdtEntry::exception(wrapper)
+        IdtEntry::trap_gate(wrapper)
+    }};
+}
+
+macro_rules! exception_with_error_handler {
+    ($func:ident) => {{
+        use crate::x86::SegmentSelector;
+        use crate::x86::idt::IdtEntry;
+
+        #[unsafe(naked)]
+        extern "C" fn wrapper() -> ! {
+            core::arch::naked_asm!(
+                // Save registers to the interrupt frame.
+                "pusha",
+                "mov %ds, %eax",
+                "push %eax",
+                // Set the data segment registers to the kernel data segment.
+                "mov ${kds}, %ax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                // Call the actual handler function, passing it a reference to the interrupt frame.
+                "push %esp",
+                "call {f}",
+                "add $4, %esp",
+                // Restore registers, including data segment registers.
+                "pop %eax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                "popa",
+                // Discard error code, since iret doesn't use it.
+                "add $4, %esp",
+                // Return from interrupt.
+                "iret",
+                kds = const SegmentSelector::kernel_data().as_u16(),
+                f = sym $func,
+                options(att_syntax)
+            );
+        }
+
+        IdtEntry::trap_gate(wrapper)
+    }};
+}
+
+macro_rules! page_fault_handler {
+    ($func:ident) => {{
+        use crate::x86::SegmentSelector;
+        use crate::x86::idt::IdtEntry;
+
+        #[unsafe(naked)]
+        extern "C" fn wrapper() -> ! {
+            core::arch::naked_asm!(
+                // Save registers to the interrupt frame.
+                "pusha",
+                "mov %ds, %eax",
+                "push %eax",
+                // Set the data segment registers to the kernel data segment.
+                "mov ${kds}, %ax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                // Obtain the faulting address from CR2.
+                "mov %cr2, %eax",
+                // It's now safe to re-enable interrupts, if the interrupt flag was already set.
+                "btl $9, 48(%esp)",
+                "jnc 2f",
+                "sti",
+                // Call the actual handler function, passing it the faulting address and a reference
+                // to the interrupt frame.
+                "2: push %esp",
+                "push %eax",
+                "call {f}",
+                "add $4, %esp",
+                // Restore registers, including data segment registers.
+                "pop %eax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                "popa",
+                // Discard error code, since iret doesn't use it.
+                "add $4, %esp",
+                // Return from interrupt.
+                "iret",
+                kds = const SegmentSelector::kernel_data().as_u16(),
+                f = sym $func,
+                options(att_syntax)
+            );
+        }
+
+        // We use an interrupt gate for page fault so that the interrupt flag is cleared, ensuring
+        // that a task switch cannot possibly overwrite the original CR2 value before we can push it
+        // onto the stack.
+        IdtEntry::interrupt_gate(wrapper)
+    }};
+}
+
+macro_rules! interrupt_handler {
+    ($func:ident) => {{
+        use crate::x86::SegmentSelector;
+        use crate::x86::idt::IdtEntry;
+
+        #[unsafe(naked)]
+        extern "C" fn wrapper() -> ! {
+            core::arch::naked_asm!(
+                // Push dummy error code, since the CPU didn't push one.
+                "push $0",
+                // Save registers to the interrupt frame.
+                "pusha",
+                "mov %ds, %eax",
+                "push %eax",
+                // Set the data segment registers to the kernel data segment.
+                "mov ${kds}, %ax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                // Call the actual handler function, passing it a reference to the interrupt frame.
+                "push %esp",
+                "call {f}",
+                "add $4, %esp",
+                // Restore registers, including data segment registers.
+                "pop %eax",
+                "mov %ax, %ds",
+                "mov %ax, %es",
+                "mov %ax, %fs",
+                "mov %ax, %gs",
+                "popa",
+                // Discard error code, since iret doesn't use it.
+                "add $4, %esp",
+                // Return from interrupt.
+                "iret",
+                kds = const SegmentSelector::kernel_data().as_u16(),
+                f = sym $func,
+                options(att_syntax)
+            );
+        }
+
+        IdtEntry::interrupt_gate(wrapper)
     }};
 }
 
 pub(crate) use exception_handler;
+pub(crate) use exception_with_error_handler;
+pub(crate) use page_fault_handler;
+pub(crate) use interrupt_handler;
