@@ -95,7 +95,7 @@ static mut GDT_PTR: GdtPointer = GdtPointer {
 };
 
 impl GlobalDescriptorTable {
-    /// Uses the lgdt instruction to load the global descriptor table, as well as set the segment
+    /// Uses the `lgdt` instruction to load the global descriptor table, as well as set the segment
     /// registers to select kernel_code and kernel_data.
     pub fn load(&'static self) {
         unsafe {
@@ -121,13 +121,10 @@ impl GlobalDescriptorTable {
 #[repr(C)]
 pub struct TaskStateSegment {
     unused0: u32,
-
     /// New stack pointer loaded upon privilege escalation to ring 0.
     pub esp0: VirtAddr,
-
     /// Stack segment loaded upon privilege escalation to ring 0.
     pub ss0: SegmentSelector,
-
     unused: [u8; 98],
 }
 

@@ -15,7 +15,7 @@ use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
 use crate::x86::idt::{exception_handler, page_fault_handler};
 use crate::x86::idt::{InterruptDescriptorTable, InterruptFrame};
 use crate::x86::instructions::{cli, hlt};
-use crate::x86::PrivilegeLevel;
+use crate::x86::{PrivilegeLevel, VirtAddr};
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
 // for the rest of the initialization code, and then jump to the Rust main function.
@@ -64,8 +64,8 @@ extern "C" fn breakpoint(frame: &InterruptFrame) {
     log_error!("{:?}", frame);
 }
 
-extern "C" fn page_fault(addr: u32, frame: &InterruptFrame) {
-    panic!("caught page fault! err=0x{:x} addr=0x{:x}", frame.err, addr);
+extern "C" fn page_fault(addr: VirtAddr, frame: &InterruptFrame) {
+    panic!("caught page fault! err=0x{:x} addr=0x{:x}", frame.err, addr.as_u32());
 }
 
 #[unsafe(no_mangle)]
