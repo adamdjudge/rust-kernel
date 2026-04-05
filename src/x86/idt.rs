@@ -1,9 +1,100 @@
 use core::arch::asm;
+use core::fmt;
 
-use crate::x86::{PrivilegeLevel, SegmentSelector};
+use crate::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
+
+/// The Interrupt Descriptor Table, which contains an array of interrupt/trap gates specifying
+/// handlers for CPU exceptions and external interrupts.
+#[repr(C)]
+pub struct InterruptDescriptorTable {
+    pub divide_error: IdtEntry,
+    pub debug_exception: IdtEntry,
+    pub non_maskable_interrupt: IdtEntry,
+    pub breakpoint: IdtEntry,
+    pub overflow: IdtEntry,
+    pub bounds_check: IdtEntry,
+    pub invalid_opcode: IdtEntry,
+    pub coprocessor_not_available: IdtEntry,
+    pub double_fault: IdtEntry,
+    pub coprocessor_segment_overrun: IdtEntry,
+    pub invalid_tss: IdtEntry,
+    pub segment_not_present: IdtEntry,
+    pub stack_fault: IdtEntry,
+    pub general_protection_fault: IdtEntry,
+    pub page_fault: IdtEntry,
+    reserved0: IdtEntry,
+    pub math_fault: IdtEntry,
+    pub alignment_check: IdtEntry,
+    pub machine_check: IdtEntry,
+    pub simd_error: IdtEntry,
+    pub virtualization_exception: IdtEntry,
+    pub control_protection_exception: IdtEntry,
+    reserved1: [IdtEntry; 10],
+    pub irq: [IdtEntry; 16],
+    reserved2: [IdtEntry; 80],
+    pub syscall: IdtEntry,
+    reserved3: [IdtEntry; 127],
+}
+
+impl InterruptDescriptorTable {
+    /// Creates a new Interrupt Descriptor Table filled with null entries.
+    pub const fn new() -> Self {
+        Self {
+            divide_error: IdtEntry::null(),
+            debug_exception: IdtEntry::null(),
+            non_maskable_interrupt: IdtEntry::null(),
+            breakpoint: IdtEntry::null(),
+            overflow: IdtEntry::null(),
+            bounds_check: IdtEntry::null(),
+            invalid_opcode: IdtEntry::null(),
+            coprocessor_not_available: IdtEntry::null(),
+            double_fault: IdtEntry::null(),
+            coprocessor_segment_overrun: IdtEntry::null(),
+            invalid_tss: IdtEntry::null(),
+            segment_not_present: IdtEntry::null(),
+            stack_fault: IdtEntry::null(),
+            general_protection_fault: IdtEntry::null(),
+            page_fault: IdtEntry::null(),
+            reserved0: IdtEntry::null(),
+            math_fault: IdtEntry::null(),
+            alignment_check: IdtEntry::null(),
+            machine_check: IdtEntry::null(),
+            simd_error: IdtEntry::null(),
+            virtualization_exception: IdtEntry::null(),
+            control_protection_exception: IdtEntry::null(),
+            reserved1: [const { IdtEntry::null() }; 10],
+            irq: [const { IdtEntry::null() }; 16],
+            reserved2: [const { IdtEntry::null() }; 80],
+            syscall: IdtEntry::null(),
+            reserved3: [const { IdtEntry::null() }; 127],
+        }
+    }
+
+    /// Uses the `lidt` instruction to load the interrupt descriptor table.
+    pub fn load(&'static self) {
+        unsafe {
+            IDT_PTR.base = &raw const *self as u32;
+            asm!("lidt IDT_PTR", options(att_syntax));
+        }
+    }
+}
+
+#[repr(packed)]
+struct IdtPointer {
+    #[allow(unused)]
+    size: u16,
+    base: u32,
+}
+
+// We need a static IDT descriptor because the lidt instruction can only use an absolute address.
+#[unsafe(no_mangle)]
+static mut IDT_PTR: IdtPointer = IdtPointer {
+    size: size_of::<InterruptDescriptorTable>() as u16 - 1,
+    base: 0,
+};
 
 /// An entry in the Interrupt Descriptor Table specifying an interrupt/trap gate.
-#[derive(Default)]
+#[derive(Clone)]
 #[repr(C)]
 #[repr(align(8))]
 pub struct IdtEntry {
@@ -15,6 +106,17 @@ pub struct IdtEntry {
 }
 
 impl IdtEntry {
+    /// Creates a new empty IDT entry.
+    pub const fn null() -> Self {
+        Self {
+            offset_lo: 0,
+            segment: SegmentSelector::null(),
+            resvd: 0,
+            access: 0,
+            offset_hi: 0,
+        }
+    }
+
     /// Creates a new IDT entry specifying a trap gate that will invoke the provided function.
     pub fn trap_gate(handler: extern "C" fn() -> !) -> Self {
         Self {
@@ -38,70 +140,10 @@ impl IdtEntry {
     }
 }
 
-/// The Interrupt Descriptor Table, which contains an array of interrupt/trap gates specifying
-/// handlers for CPU exceptions and external interrupts.
-#[derive(Default)]
-#[repr(C)]
-pub struct InterruptDescriptorTable {
-    pub divide_error: IdtEntry,
-    pub debug_exception: IdtEntry,
-    pub non_maskable_interrupt: IdtEntry,
-    pub breakpoint: IdtEntry,
-    pub overflow: IdtEntry,
-    pub bounds_check: IdtEntry,
-    pub invalid_opcode: IdtEntry,
-    pub coprocessor_not_available: IdtEntry,
-    pub double_fault: IdtEntry,
-    pub coprocessor_segment_overrun: IdtEntry,
-    pub invalid_tss: IdtEntry,
-    pub segment_not_present: IdtEntry,
-    pub stack_fault: IdtEntry,
-    pub general_protection_fault: IdtEntry,
-    pub page_fault: IdtEntry,
-    reserved: IdtEntry,
-    pub math_fault: IdtEntry,
-    pub alignment_check: IdtEntry,
-    pub machine_check: IdtEntry,
-    pub simd_error: IdtEntry,
-    pub virtualization_exception: IdtEntry,
-    pub control_protection_exception: IdtEntry,
-    unused0: [IdtEntry; 10],
-    pub irq: [IdtEntry; 16],
-    unused1: [IdtEntry; 16],
-    unused2: [IdtEntry; 32],
-    unused3: [IdtEntry; 32],
-    pub syscall: IdtEntry,
-}
-
-#[repr(packed)]
-struct IdtPointer {
-    #[allow(unused)]
-    size: u16,
-    base: u32,
-}
-
-// We need a static IDT descriptor because the lidt instruction can only use an absolute address.
-#[unsafe(no_mangle)]
-static mut IDT_PTR: IdtPointer = IdtPointer {
-    size: size_of::<InterruptDescriptorTable>() as u16 - 1,
-    base: 0,
-};
-
-impl InterruptDescriptorTable {
-    /// Uses the `lidt` instruction to load the interrupt descriptor table.
-    pub fn load(&'static self) {
-        unsafe {
-            IDT_PTR.base = &raw const *self as u32;
-            asm!("lidt IDT_PTR", options(att_syntax));
-        }
-    }
-}
-
 /// Contains saved CPU state pushed onto the stack when an interrupt/exception occurs. This
 /// structure contains both values pushed by the CPU as part of its internal interrupt handling, as
 /// well as additional register state pushed by the boilerplate code generated by the handler macros
 /// in this module.
-#[derive(Default, Debug)]
 #[repr(C)]
 pub struct InterruptFrame {
     /// `DS` register value at the time of interrupt.
@@ -125,8 +167,10 @@ pub struct InterruptFrame {
     pub eax: u32,
     /// Error code pushed by the CPU during certain exceptions, otherwise set to 0.
     pub err: u32,
-    /// `EIP` register value at the time of interrupt.
-    pub eip: u32,
+    /// The address of the next instruction to execute after this interrupt. In the case of some
+    /// traps (i.e. page fault) this is the address of the instruction that triggered the trap, so
+    /// that it can be re-executed after the fault has been handled.
+    pub eip: VirtAddr,
     /// `CS` register value at the time of interrupt.
     cs: SegmentSelector,
     pad1: u16,
@@ -134,7 +178,7 @@ pub struct InterruptFrame {
     pub eflags: u32,
     /// User stack pointer at the time of interrupt. Only valid for interrupts that occur while
     /// executing in user mode.
-    esp: u32,
+    esp: VirtAddr,
     /// User stack segment register at the time of interrupt. Only valid for interrupts that occur
     /// while executing in user mode.
     ss: SegmentSelector,
@@ -143,25 +187,51 @@ pub struct InterruptFrame {
 
 impl InterruptFrame {
     /// Creates an interrupt frame for initializing the stack of a newly created kernel mode task.
-    fn kernel(eip: u32, esp: u32) -> Self {
-        let mut frame = Self::default();
-        frame.cs = SegmentSelector::kernel_code();
-        frame.ds = SegmentSelector::kernel_data();
-        frame.eip = eip;
-        frame.esp = esp;
-        frame
+    fn kernel(eip: VirtAddr) -> Self {
+        Self {
+            ds: SegmentSelector::kernel_data(),
+            pad0: 0,
+            edi: 0,
+            esi: 0,
+            ebp: 0,
+            _esp: 0,
+            ebx: 0,
+            edx: 0,
+            ecx: 0,
+            eax: 0,
+            err: 0,
+            eip,
+            cs: SegmentSelector::kernel_code(),
+            pad1: 0,
+            eflags: 0,
+            esp: VirtAddr::null(),
+            ss: SegmentSelector::null(),
+            pad2: 0,
+        }
     }
 
     /// Creates an interrupt frame for initializing the stack of a newly created user mode task.
-    fn user(eip: u32, esp: u32) -> Self {
-        let mut frame = Self::default();
-        frame.cs = SegmentSelector::user_code();
-        frame.ds = SegmentSelector::user_data();
-        frame.ss = SegmentSelector::user_data();
-        frame.eflags = 1 << 9; // enable interrupts
-        frame.eip = eip;
-        frame.esp = esp;
-        frame
+    fn user(eip: VirtAddr, esp: VirtAddr) -> Self {
+        Self {
+            ds: SegmentSelector::user_data(),
+            pad0: 0,
+            edi: 0,
+            esi: 0,
+            ebp: 0,
+            _esp: 0,
+            ebx: 0,
+            edx: 0,
+            ecx: 0,
+            eax: 0,
+            err: 0,
+            eip,
+            cs: SegmentSelector::user_code(),
+            pad1: 0,
+            eflags: 0,
+            esp,
+            ss: SegmentSelector::user_data(),
+            pad2: 0,
+        }
     }
 
     /// Returns whether this interrupt frame belongs to a kernel mode execution context.
@@ -171,7 +241,7 @@ impl InterruptFrame {
 
     /// Returns the user stack pointer if it is valid, otherwise `None`. It is only valid if the
     /// interrupt occurred while executing in user mode.
-    fn get_user_esp(&self) -> Option<u32> {
+    fn get_user_esp(&self) -> Option<VirtAddr> {
         if self.is_kernel() {
             None
         } else {
@@ -181,10 +251,33 @@ impl InterruptFrame {
 
     /// Sets the user stack pointer if it is valid, otherwise this function has no effect. It is
     /// only valid if the interrupt occurred while executing in user mode.
-    fn set_user_esp(&mut self, esp: u32) {
+    fn set_user_esp(&mut self, esp: VirtAddr) {
         if self.is_kernel() {
             self.esp = esp;
         }
+    }
+}
+
+impl fmt::Debug for InterruptFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("InterruptFrame");
+        debug_struct
+            .field("ds", &self.ds)
+            .field("edi", &self.edi)
+            .field("esi", &self.esi)
+            .field("ebp", &self.ebp)
+            .field("ebx", &self.ebx)
+            .field("edx", &self.edx)
+            .field("ecx", &self.ecx)
+            .field("eax", &self.eax)
+            .field("err", &self.err)
+            .field("eip", &self.eip)
+            .field("cs", &self.cs)
+            .field("eflags", &self.eflags);
+        if !self.is_kernel() {
+            debug_struct.field("esp", &self.esp).field("ss", &self.ss);
+        }
+        debug_struct.finish()
     }
 }
 

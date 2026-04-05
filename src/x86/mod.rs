@@ -1,3 +1,4 @@
+use core::fmt;
 use core::mem;
 
 pub mod gdt;
@@ -23,7 +24,7 @@ pub enum PrivilegeLevel {
 
 /// Wrapper for protected mode segment selectors, which consist of an offset into the Global
 /// Descriptor Table and a privilege level, and are loaded into the segment registers.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct SegmentSelector(u16);
 
@@ -32,6 +33,11 @@ impl SegmentSelector {
     /// Creates a new segment selector from a GDT offset and privilege level.
     pub const fn new(offset: u16, dpl: PrivilegeLevel) -> Self {
         Self(offset & !0x7 | dpl as u16)
+    }
+
+    /// Creates a new null segment selector.
+    pub const fn null() -> Self {
+        Self(0)
     }
 
     /// Returns the segment selector for the GDT's kernel code segment.
@@ -128,6 +134,12 @@ impl VirtAddr {
     }
 }
 
+impl fmt::Debug for VirtAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("VirtAddr(0x{:08x})", self.as_u32()))
+    }
+}
+
 /// Physical address wrapper.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -152,5 +164,11 @@ impl PhysAddr {
     /// Checks whether the address is null.
     pub fn is_null(&self) -> bool {
         self.0 == 0
+    }
+}
+
+impl fmt::Debug for PhysAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("PhysAddr(0x{:08x})", self.as_u32()))
     }
 }

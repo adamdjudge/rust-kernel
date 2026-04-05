@@ -23,7 +23,7 @@ global_asm!(
     ".bss
     .align 4
     init_stack:
-        .skip 1024
+        .skip 4096
     
     .section .text.start
     .global _start
@@ -36,7 +36,7 @@ global_asm!(
         xor %eax, %eax
         rep stosl
 
-        mov $init_stack + 1024, %esp
+        mov $init_stack + 4096, %esp
         jmp main",
     options(att_syntax)
 );
@@ -53,7 +53,7 @@ static GDT: LazyInit<GlobalDescriptorTable> = LazyInit::new(|| GlobalDescriptorT
 });
 
 static IDT: LazyInit<InterruptDescriptorTable> = LazyInit::new(|| {
-    let mut idt = InterruptDescriptorTable::default();
+    let mut idt = InterruptDescriptorTable::new();
     idt.breakpoint = exception_handler!(breakpoint);
     idt.page_fault = page_fault_handler!(page_fault);
     idt
@@ -79,6 +79,8 @@ fn main() -> ! {
 
     log_info!("Hello from Rust kernel!");
     log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
+
+    x86::instructions::int3();
 
     let ptr = 0xdeadbeef as *mut u8;
     unsafe {
