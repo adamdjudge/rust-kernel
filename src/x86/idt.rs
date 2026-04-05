@@ -1,6 +1,7 @@
 use core::arch::asm;
 use core::fmt;
 
+use crate::x86::registers::eflags::Eflags;
 use crate::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
 
 /// The Interrupt Descriptor Table, which contains an array of interrupt/trap gates specifying
@@ -175,7 +176,7 @@ pub struct InterruptFrame {
     cs: SegmentSelector,
     pad1: u16,
     /// Flags register value at the time of interrupt.
-    pub eflags: u32,
+    pub eflags: Eflags,
     /// User stack pointer at the time of interrupt. Only valid for interrupts that occur while
     /// executing in user mode.
     esp: VirtAddr,
@@ -203,7 +204,7 @@ impl InterruptFrame {
             eip,
             cs: SegmentSelector::kernel_code(),
             pad1: 0,
-            eflags: 0,
+            eflags: Eflags::none(),
             esp: VirtAddr::null(),
             ss: SegmentSelector::null(),
             pad2: 0,
@@ -227,7 +228,7 @@ impl InterruptFrame {
             eip,
             cs: SegmentSelector::user_code(),
             pad1: 0,
-            eflags: 0,
+            eflags: Eflags::INTERRUPT_FLAG,
             esp,
             ss: SegmentSelector::user_data(),
             pad2: 0,
@@ -263,14 +264,14 @@ impl fmt::Debug for InterruptFrame {
         let mut debug_struct = f.debug_struct("InterruptFrame");
         debug_struct
             .field("ds", &self.ds)
-            .field("edi", &self.edi)
-            .field("esi", &self.esi)
-            .field("ebp", &self.ebp)
-            .field("ebx", &self.ebx)
-            .field("edx", &self.edx)
-            .field("ecx", &self.ecx)
-            .field("eax", &self.eax)
-            .field("err", &self.err)
+            .field("edi", &format_args!("0x{:08x}", self.edi))
+            .field("esi", &format_args!("0x{:08x}", self.esi))
+            .field("ebp", &format_args!("0x{:08x}", self.ebp))
+            .field("ebx", &format_args!("0x{:08x}", self.ebx))
+            .field("edx", &format_args!("0x{:08x}", self.edx))
+            .field("ecx", &format_args!("0x{:08x}", self.ecx))
+            .field("eax", &format_args!("0x{:08x}", self.eax))
+            .field("err", &format_args!("0x{:08x}", self.err))
             .field("eip", &self.eip)
             .field("cs", &self.cs)
             .field("eflags", &self.eflags);

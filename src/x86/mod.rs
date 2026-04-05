@@ -5,6 +5,7 @@ pub mod gdt;
 pub mod idt;
 pub mod instructions;
 pub mod port;
+pub mod registers;
 
 /// CPU privilege level. Ring 0 is used by the kernel and ring 3 is used by userspace.
 #[derive(Clone, Copy, PartialEq, Eq)]
