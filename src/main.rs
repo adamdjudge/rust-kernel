@@ -80,6 +80,11 @@ fn main() -> ! {
     log_info!("Hello from Rust kernel!");
     log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
 
+    log_info!("eflags: {:?}", x86::registers::eflags::read());
+    log_info!("cr0: {:?}", x86::registers::cr0::read());
+    log_info!("cr2: {:?}", x86::registers::cr2::read());
+    log_info!("cr3: {:?}", x86::registers::cr3::read());
+
     x86::instructions::int3();
 
     let ptr = 0xdeadbeef as *mut u8;

@@ -204,7 +204,7 @@ impl InterruptFrame {
             eip,
             cs: SegmentSelector::kernel_code(),
             pad1: 0,
-            eflags: Eflags::none(),
+            eflags: Eflags::empty(),
             esp: VirtAddr::null(),
             ss: SegmentSelector::null(),
             pad2: 0,

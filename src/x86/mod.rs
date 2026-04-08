@@ -133,6 +133,18 @@ impl VirtAddr {
     pub fn is_null(&self) -> bool {
         self.0 == 0
     }
+
+    /// Rounds the address _down_ to the nearest page size alignment, if it is not already
+    /// page-aligned.
+    pub fn page_align_down(&self) -> Self {
+        Self(self.0 & 0xfffff000)
+    }
+
+    /// Rounds the address _up_ to the nearest page size alignment, if it is not already
+    /// page-aligned.
+    pub fn page_align_up(&self) -> Self {
+        Self((self.0 + 4095) & 0xfffff000)
+    }
 }
 
 impl fmt::Debug for VirtAddr {
@@ -165,6 +177,18 @@ impl PhysAddr {
     /// Checks whether the address is null.
     pub fn is_null(&self) -> bool {
         self.0 == 0
+    }
+
+    /// Rounds the address _down_ to the nearest page size alignment, if it is not already
+    /// page-aligned.
+    pub fn page_align_down(&self) -> Self {
+        Self(self.0 & 0xfffff000)
+    }
+
+    /// Rounds the address _up_ to the nearest page size alignment, if it is not already
+    /// page-aligned.
+    pub fn page_align_up(&self) -> Self {
+        Self((self.0 + 4095) & 0xfffff000)
     }
 }
 
