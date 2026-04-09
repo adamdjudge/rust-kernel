@@ -134,6 +134,11 @@ impl VirtAddr {
         self.0 == 0
     }
 
+    /// Checks whether the address is page-aligned.
+    pub fn is_page_aligned(&self) -> bool {
+        return self.0 & 0xfff == 0
+    }
+
     /// Rounds the address _down_ to the nearest page size alignment, if it is not already
     /// page-aligned.
     pub fn page_align_down(&self) -> Self {
@@ -177,6 +182,11 @@ impl PhysAddr {
     /// Checks whether the address is null.
     pub fn is_null(&self) -> bool {
         self.0 == 0
+    }
+
+    /// Checks whether the address is page-aligned.
+    pub fn is_page_aligned(&self) -> bool {
+        return self.0 & 0xfff == 0
     }
 
     /// Rounds the address _down_ to the nearest page size alignment, if it is not already

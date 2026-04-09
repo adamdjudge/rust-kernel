@@ -1,3 +1,8 @@
+//! Contains modules for working with special CPU registers, namely `EFLAGS` and the various control
+//! registers.
+
+/// Access to the processor `EFLAGS` register, which contains arithmetic condition flags and system
+/// control flags.
 pub mod eflags {
     use core::arch::asm;
     use core::fmt;
@@ -20,14 +25,22 @@ pub mod eflags {
         pub const RESUME_FLAG: Self = Self(1 << 16);
         pub const VIRTUAL_8086_FLAG: Self = Self(1 << 17);
 
+        /// Creates a new `Eflags` value with no flags set.
         pub const fn empty() -> Self {
             Self(0)
         }
 
+        /// Returns the raw value of the flag bits.
+        pub const fn as_u32(&self) -> u32 {
+            self.0
+        }
+
+        /// Returns the `CF` (Carry Flag) bit.
         pub fn get_carry_flag(&self) -> bool {
             self.0 & Self::CARRY_FLAG.0 != 0
         }
 
+        /// Sets the state of the `CF` (Carry Flag) bit.
         pub fn set_carry_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::CARRY_FLAG.0;
@@ -37,10 +50,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `ZF` (Zero Flag) bit.
         pub fn get_zero_flag(&self) -> bool {
             self.0 & Self::ZERO_FLAG.0 != 0
         }
 
+        /// Sets the state of the `ZF` (Zero Flag) bit.
         pub fn set_zero_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::ZERO_FLAG.0;
@@ -50,10 +65,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `SF` (Sign Flag) bit.
         pub fn get_sign_flag(&self) -> bool {
             self.0 & Self::SIGN_FLAG.0 != 0
         }
 
+        /// Sets the state of the `SF` (Sign Flag) bit.
         pub fn set_sign_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::SIGN_FLAG.0;
@@ -63,10 +80,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `TF` (Trap Flag) bit.
         pub fn get_trap_flag(&self) -> bool {
             self.0 & Self::TRAP_FLAG.0 != 0
         }
 
+        /// Sets the state of the `TF` (Trap Flag) bit.
         pub fn set_trap_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::TRAP_FLAG.0;
@@ -76,10 +95,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `IF` (Interrupt Flag) bit.
         pub fn get_interrupt_flag(&self) -> bool {
             self.0 & Self::INTERRUPT_FLAG.0 != 0
         }
 
+        /// Sets the state of the `IF` (Interrupt Flag) bit.
         pub fn set_interrupt_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::INTERRUPT_FLAG.0;
@@ -89,10 +110,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `OF` (Overflow Flag) bit.
         pub fn get_overflow_flag(&self) -> bool {
             self.0 & Self::OVERFLOW_FLAG.0 != 0
         }
 
+        /// Sets the state of the `OF` (Overflow Flag) bit.
         pub fn set_overflow_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::OVERFLOW_FLAG.0;
@@ -102,10 +125,12 @@ pub mod eflags {
             self
         }
 
+        /// Returns the `VM` (Virtual 8086 Mode) bit.
         pub fn get_virtual_8086_flag(&self) -> bool {
             self.0 & Self::VIRTUAL_8086_FLAG.0 != 0
         }
 
+        /// Sets the state of the `VM` (Virtual 8086 Mode) bit.
         pub fn set_virtual_8086_flag(&mut self, value: bool) -> &mut Self {
             if value {
                 self.0 |= Self::VIRTUAL_8086_FLAG.0;
@@ -122,6 +147,7 @@ pub mod eflags {
         }
     }
 
+    /// Reads the `EFLAGS` register and returns its value.
     pub fn read() -> Eflags {
         let value: u32;
         unsafe {
@@ -135,6 +161,14 @@ pub mod eflags {
         Eflags(value)
     }
 
+    /// Writes a new value to the `EFLAGS` register.
+    /// 
+    /// ## Safety
+    /// This function is unsafe because modifying certain flags, such as `DF` or the arithmetic
+    /// condition flags, can cause undefined behavior in Rust code. Additionally, setting the `VM`
+    /// flag enables the virtual 8086 mode of the processor, which could produce undefined behavior
+    /// including memory safety violation if the virtual machine environment is not properly set up
+    /// beforehand.
     pub unsafe fn write(value: Eflags) {
         unsafe {
             asm!(
@@ -146,10 +180,12 @@ pub mod eflags {
     }
 }
 
+/// Access to the processor `CR0` register, which contains system control flags.
 pub mod cr0 {
     use core::arch::asm;
     use core::fmt;
 
+    /// Represents a `CR0` register value.
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct Cr0(u32);
 
@@ -161,14 +197,22 @@ pub mod cr0 {
         pub const TASK_SWITCHED_FLAG: Self = Self(1 << 3);
         pub const PAGING_FLAG: Self = Self(1 << 31);
 
-        pub fn empty() -> Self {
+        /// Creates a new `Cr0` value with no flags set.
+        pub const fn empty() -> Self {
             Self(0)
         }
 
+        /// Returns the raw value of the flag bits.
+        pub const fn as_u32(&self) -> u32 {
+            self.0
+        }
+
+        /// Returns the `PG` (Paging) bit.
         pub fn get_paging_flag(&self) -> bool {
             self.0 & Self::PAGING_FLAG.0 != 0
         }
 
+        /// Sets the state of the `PG` (Paging) bit.
         pub fn set_paging_flag(&mut self, value: bool) {
             if value {
                 self.0 |= Self::PAGING_FLAG.0;
@@ -184,6 +228,7 @@ pub mod cr0 {
         }
     }
 
+    /// Reads the `CR0` register and returns its value.
     pub fn read() -> Cr0 {
         let value: u32;
         unsafe {
@@ -196,6 +241,11 @@ pub mod cr0 {
         Cr0(value)
     }
 
+    /// Writes a value to the `CR0` register.
+    /// 
+    /// ## Safety
+    /// This function is unsafe because disabling paging can allow for violations of the memory
+    /// safety model, and modifying other control flags can cause undefined behavior.
     pub unsafe fn write(value: Cr0) {
         unsafe {
             asm!(
@@ -207,11 +257,15 @@ pub mod cr0 {
     }
 }
 
+/// Access to the processor `CR2` register, which contains the virtual address of the faulting
+/// memory access after a page fault exception.
+#[allow(unused)]
 pub mod cr2 {
     use core::arch::asm;
 
     use crate::x86::VirtAddr;
 
+    /// Reads the `CR2` register and returns its virtual address value.
     pub fn read() -> VirtAddr {
         let value: u32;
         unsafe {
@@ -225,12 +279,15 @@ pub mod cr2 {
     }
 }
 
+/// Access to the processor `CR3` register, which contains the physical address of the page
+/// directory.
 pub mod cr3 {
     use core::arch::asm;
 
-    use crate::x86::VirtAddr;
+    use crate::x86::PhysAddr;
 
-    pub fn read() -> VirtAddr {
+    /// Reads the `CR3` register and returns its physical address value.
+    pub fn read() -> PhysAddr {
         let value: u32;
         unsafe {
             asm!(
@@ -239,14 +296,24 @@ pub mod cr3 {
                 options(nomem, nostack, preserves_flags)
             );
         }
-        VirtAddr::new(value)
+        PhysAddr::new(value)
     }
 
-    pub unsafe fn write(value: VirtAddr) {
+    /// Writes the physical address of a page directory to the `CR3` register. Panics if the address
+    /// is not page-aligned.
+    /// 
+    /// ## Safety
+    /// This function is unsafe because improperly configuring the page directory could violate the
+    /// memory safety model.
+    pub unsafe fn write(addr: PhysAddr) {
+        if !addr.is_page_aligned() {
+            panic!("tried to write non-page-aligned address to cr3");
+        }
+
         unsafe {
             asm!(
                 "mov cr3, eax",
-                in("eax") value.page_align_down().as_u32(),
+                in("eax") addr.as_u32(),
                 options(nomem, nostack, preserves_flags)
             );
         }
