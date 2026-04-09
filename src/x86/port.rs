@@ -1,13 +1,17 @@
 use core::arch::asm;
+use core::fmt;
 
-macro_rules! port_type {
+/// An 8-bit I/O port, which can read or write `u8` values.
+pub struct PortU8(u16);
+
+/// A 16-bit I/O port, which can read or write `u16` values.
+pub struct PortU16(u16);
+
+/// A 32-bit I/O port, which can read or write `u32` values.
+pub struct PortU32(u16);
+
+macro_rules! impl_port {
     ($name:ident, $type:ty, $reg:tt) => {
-        /// Representation of an x86 I/O port that can read or write `
-        #[doc = stringify!($type)]
-        /// ` values.
-        #[derive(Debug)]
-        pub struct $name(u16);
-
         #[allow(unused)]
         impl $name {
             /// Returns a new representation of an I/O port.
@@ -18,6 +22,7 @@ macro_rules! port_type {
 
             /// Reads a value from this I/O port.
             ///
+            /// ## Safety
             /// This method is unsafe because accessing peripherals can have side effects that could
             /// violate the memory model.
             #[inline]
@@ -35,6 +40,7 @@ macro_rules! port_type {
 
             /// Writes a value to this I/O port.
             ///
+            /// ## Safety
             /// This method is unsafe because accessing peripherals can have side effects that could
             /// violate the memory model.
             #[inline]
@@ -48,9 +54,15 @@ macro_rules! port_type {
                 }
             }
         }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_fmt(format_args!("{}(0x{:04x})", stringify!($name), self.0))
+            }
+        }
     };
 }
 
-port_type!(PortU8, u8, "al");
-port_type!(PortU16, u16, "ax");
-port_type!(PortU32, u32, "eax");
+impl_port!(PortU8, u8, "al");
+impl_port!(PortU16, u16, "ax");
+impl_port!(PortU32, u32, "eax");
