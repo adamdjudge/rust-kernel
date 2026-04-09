@@ -123,39 +123,6 @@ impl VirtAddr {
     pub const fn null() -> Self {
         Self(0)
     }
-
-    /// Returns the raw u32 address value.
-    pub fn as_u32(&self) -> u32 {
-        self.0
-    }
-
-    /// Checks whether the address is null.
-    pub fn is_null(&self) -> bool {
-        self.0 == 0
-    }
-
-    /// Checks whether the address is page-aligned.
-    pub fn is_page_aligned(&self) -> bool {
-        return self.0 & 0xfff == 0
-    }
-
-    /// Rounds the address _down_ to the nearest page size alignment, if it is not already
-    /// page-aligned.
-    pub fn page_align_down(&self) -> Self {
-        Self(self.0 & 0xfffff000)
-    }
-
-    /// Rounds the address _up_ to the nearest page size alignment, if it is not already
-    /// page-aligned.
-    pub fn page_align_up(&self) -> Self {
-        Self((self.0 + 4095) & 0xfffff000)
-    }
-}
-
-impl fmt::Debug for VirtAddr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("VirtAddr(0x{:08x})", self.as_u32()))
-    }
 }
 
 /// Physical address wrapper.
@@ -173,37 +140,46 @@ impl PhysAddr {
     pub const fn null() -> Self {
         Self(0)
     }
-
-    /// Returns the raw u32 address value.
-    pub fn as_u32(&self) -> u32 {
-        self.0
-    }
-
-    /// Checks whether the address is null.
-    pub fn is_null(&self) -> bool {
-        self.0 == 0
-    }
-
-    /// Checks whether the address is page-aligned.
-    pub fn is_page_aligned(&self) -> bool {
-        return self.0 & 0xfff == 0
-    }
-
-    /// Rounds the address _down_ to the nearest page size alignment, if it is not already
-    /// page-aligned.
-    pub fn page_align_down(&self) -> Self {
-        Self(self.0 & 0xfffff000)
-    }
-
-    /// Rounds the address _up_ to the nearest page size alignment, if it is not already
-    /// page-aligned.
-    pub fn page_align_up(&self) -> Self {
-        Self((self.0 + 4095) & 0xfffff000)
-    }
 }
 
-impl fmt::Debug for PhysAddr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("PhysAddr(0x{:08x})", self.as_u32()))
-    }
+macro_rules! impl_addr {
+    ($name:ident) => {
+        impl $name {
+            /// Returns the raw u32 address value.
+            pub fn as_u32(&self) -> u32 {
+                self.0
+            }
+
+            /// Checks whether the address is null.
+            pub fn is_null(&self) -> bool {
+                self.0 == 0
+            }
+
+            /// Checks whether the address is page-aligned.
+            pub fn is_page_aligned(&self) -> bool {
+                return self.0 & 0xfff == 0
+            }
+
+            /// Rounds the address _down_ to the nearest page size alignment, if it is not already
+            /// page-aligned.
+            pub fn page_align_down(&self) -> Self {
+                Self(self.0 & 0xfffff000)
+            }
+
+            /// Rounds the address _up_ to the nearest page size alignment, if it is not already
+            /// page-aligned.
+            pub fn page_align_up(&self) -> Self {
+                Self((self.0 + 4095) & 0xfffff000)
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_fmt(format_args!("{}(0x{:08x})", stringify!($name), self.as_u32()))
+            }
+        }
+    };
 }
+
+impl_addr!(VirtAddr);
+impl_addr!(PhysAddr);
