@@ -1,6 +1,7 @@
 use core::fmt;
 use core::mem;
 
+pub mod chipset;
 pub mod gdt;
 pub mod idt;
 pub mod instructions;

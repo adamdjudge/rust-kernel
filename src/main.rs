@@ -12,9 +12,9 @@ use core::panic::PanicInfo;
 
 use crate::sync::LazyInit;
 use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
-use crate::x86::idt::{exception_handler, page_fault_handler};
+use crate::x86::idt::{exception_handler, interrupt_handler, page_fault_handler};
 use crate::x86::idt::{InterruptDescriptorTable, InterruptFrame};
-use crate::x86::instructions::{cli, hlt};
+use crate::x86::instructions::{cli, hlt, sti};
 use crate::x86::{PrivilegeLevel, VirtAddr};
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
@@ -56,6 +56,7 @@ static IDT: LazyInit<InterruptDescriptorTable> = LazyInit::new(|| {
     let mut idt = InterruptDescriptorTable::new();
     idt.breakpoint = exception_handler!(breakpoint);
     idt.page_fault = page_fault_handler!(page_fault);
+    idt.irq[0] = interrupt_handler!(timer_handler);
     idt
 });
 
@@ -68,6 +69,24 @@ extern "C" fn page_fault(addr: VirtAddr, frame: &InterruptFrame) {
     panic!("caught page fault! err=0x{:x} addr=0x{:x}", frame.err, addr.as_u32());
 }
 
+static mut COUNTER: usize = 0;
+
+extern "C" fn timer_handler(_: &InterruptFrame) {
+    let count = unsafe {
+        COUNTER = COUNTER + 1;
+        if COUNTER == 1000 {
+            COUNTER = 0;
+        }
+        COUNTER
+    };
+
+    if count == 0 {
+        log_info!("timer interrupt!");
+    }
+
+    x86::chipset::pic::end_of_interrupt(0);
+}
+
 #[unsafe(no_mangle)]
 fn main() -> ! {
     GDT.load();
@@ -77,21 +96,13 @@ fn main() -> ! {
     paging::init();
     console::clear();
 
+    x86::chipset::pic::init();
+    x86::chipset::pit::set_rate(1000);
+
     log_info!("Hello from Rust kernel!");
     log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
 
-    log_info!("eflags: {:?}", x86::registers::eflags::read());
-    log_info!("cr0: {:?}", x86::registers::cr0::read());
-    log_info!("cr2: {:?}", x86::registers::cr2::read());
-    log_info!("cr3: {:?}", x86::registers::cr3::read());
-
-    x86::instructions::int3();
-
-    let ptr = 0xdeadbeef as *mut u8;
-    unsafe {
-        *ptr = 5;
-    }
-
+    sti();
     loop {
         hlt();
     }
