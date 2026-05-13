@@ -162,7 +162,7 @@ pub mod eflags {
     }
 
     /// Writes a new value to the `EFLAGS` register.
-    /// 
+    ///
     /// ## Safety
     /// This function is unsafe because modifying certain flags, such as `DF` or the arithmetic
     /// condition flags, can cause undefined behavior in Rust code. Additionally, setting the `VM`
@@ -242,7 +242,7 @@ pub mod cr0 {
     }
 
     /// Writes a value to the `CR0` register.
-    /// 
+    ///
     /// ## Safety
     /// This function is unsafe because disabling paging can allow for violations of the memory
     /// safety model, and modifying other control flags can cause undefined behavior.
@@ -301,15 +301,12 @@ pub mod cr3 {
 
     /// Writes the physical address of a page directory to the `CR3` register. Panics if the address
     /// is not page-aligned.
-    /// 
+    ///
     /// ## Safety
     /// This function is unsafe because improperly configuring the page directory could violate the
     /// memory safety model.
     pub unsafe fn write(addr: PhysAddr) {
-        if !addr.is_page_aligned() {
-            panic!("tried to write non-page-aligned address to cr3");
-        }
-
+        assert!(addr.is_page_aligned());
         unsafe {
             asm!(
                 "mov cr3, eax",

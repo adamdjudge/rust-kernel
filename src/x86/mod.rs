@@ -1,10 +1,14 @@
 use core::fmt;
-use core::mem;
+use core::mem::{offset_of, transmute};
+
+use crate::x86::gdt::GlobalDescriptorTable;
+use crate::x86::paging::PageTable;
 
 pub mod chipset;
 pub mod gdt;
 pub mod idt;
 pub mod instructions;
+pub mod paging;
 pub mod port;
 pub mod registers;
 
@@ -45,7 +49,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's kernel code segment.
     pub const fn kernel_code() -> Self {
         Self::new(
-            mem::offset_of!(gdt::GlobalDescriptorTable, kernel_code) as u16,
+            offset_of!(GlobalDescriptorTable, kernel_code) as u16,
             PrivilegeLevel::Ring0,
         )
     }
@@ -53,7 +57,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's kernel data segment.
     pub const fn kernel_data() -> Self {
         Self::new(
-            mem::offset_of!(gdt::GlobalDescriptorTable, kernel_data) as u16,
+            offset_of!(GlobalDescriptorTable, kernel_data) as u16,
             PrivilegeLevel::Ring0,
         )
     }
@@ -61,7 +65,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's user code segment.
     pub const fn user_code() -> Self {
         Self::new(
-            mem::offset_of!(gdt::GlobalDescriptorTable, user_code) as u16,
+            offset_of!(GlobalDescriptorTable, user_code) as u16,
             PrivilegeLevel::Ring3,
         )
     }
@@ -69,7 +73,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's user data segment.
     pub const fn user_data() -> Self {
         Self::new(
-            mem::offset_of!(gdt::GlobalDescriptorTable, user_data) as u16,
+            offset_of!(GlobalDescriptorTable, user_data) as u16,
             PrivilegeLevel::Ring3,
         )
     }
@@ -77,7 +81,7 @@ impl SegmentSelector {
     /// Returns the segment selector for the GDT's task state segment.
     pub const fn tss() -> Self {
         Self::new(
-            mem::offset_of!(gdt::GlobalDescriptorTable, tss) as u16,
+            offset_of!(GlobalDescriptorTable, tss) as u16,
             PrivilegeLevel::Ring0,
         )
     }
@@ -100,7 +104,7 @@ impl SegmentSelector {
 
     /// Returns the privilege level of the segment selector.
     pub const fn dpl(&self) -> PrivilegeLevel {
-        unsafe { mem::transmute((self.0 & 0x3) as u8) }
+        unsafe { transmute((self.0 & 0x3) as u8) }
     }
 
     /// Checks whether the segment belongs to the kernel (privilege level is ring 0).
@@ -123,6 +127,16 @@ impl VirtAddr {
     /// Creates a null virtual address.
     pub const fn null() -> Self {
         Self(0)
+    }
+
+    /// Returns the page directory index component of a virtual address.
+    pub fn page_directory_index(&self) -> usize {
+        (self.0 >> 22) as usize
+    }
+
+    /// Returns the page table index component of a virtual address.
+    pub fn page_table_index(&self) -> usize {
+        (self.0 >> 12) as usize % PageTable::ENTRIES
     }
 }
 
@@ -147,7 +161,7 @@ macro_rules! impl_addr {
     ($name:ident) => {
         impl $name {
             /// Returns the raw u32 address value.
-            pub fn as_u32(&self) -> u32 {
+            pub const fn as_u32(&self) -> u32 {
                 self.0
             }
 
@@ -156,27 +170,36 @@ macro_rules! impl_addr {
                 self.0 == 0
             }
 
+            /// Returns the page offset of an address.
+            pub fn page_offset(&self) -> usize {
+                self.0 as usize % paging::PAGE_SIZE
+            }
+
             /// Checks whether the address is page-aligned.
             pub fn is_page_aligned(&self) -> bool {
-                return self.0 & 0xfff == 0
+                self.page_offset() == 0
             }
 
             /// Rounds the address _down_ to the nearest page size alignment, if it is not already
             /// page-aligned.
             pub fn page_align_down(&self) -> Self {
-                Self(self.0 & 0xfffff000)
+                Self(self.0 & paging::PAGE_MASK)
             }
 
             /// Rounds the address _up_ to the nearest page size alignment, if it is not already
             /// page-aligned.
             pub fn page_align_up(&self) -> Self {
-                Self((self.0 + 4095) & 0xfffff000)
+                Self(self.0.wrapping_add(paging::PAGE_SIZE as u32 - 1) & paging::PAGE_MASK)
             }
         }
 
         impl fmt::Debug for $name {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_fmt(format_args!("{}(0x{:08x})", stringify!($name), self.as_u32()))
+                f.write_fmt(format_args!(
+                    "{}(0x{:08x})",
+                    stringify!($name),
+                    self.as_u32()
+                ))
             }
         }
     };
