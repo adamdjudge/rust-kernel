@@ -3,7 +3,7 @@
 
 mod console;
 mod log;
-mod paging;
+mod mm;
 mod sync;
 mod x86;
 
@@ -93,14 +93,13 @@ fn main() -> ! {
     unsafe { &*(&raw const TSS) }.load();
     IDT.load();
 
-    paging::init();
+    mm::init();
     console::clear();
 
     x86::chipset::pic::init();
     x86::chipset::pit::set_rate(1000);
 
     log_info!("Hello from Rust kernel!");
-    log_info!("Memory in use: {} KB", paging::mem_used() / 1024);
 
     sti();
     loop {

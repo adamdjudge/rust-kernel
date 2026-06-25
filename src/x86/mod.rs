@@ -114,7 +114,7 @@ impl SegmentSelector {
 }
 
 /// Virtual address wrapper.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct VirtAddr(u32);
 
@@ -138,10 +138,21 @@ impl VirtAddr {
     pub fn page_table_index(&self) -> usize {
         (self.0 >> 12) as usize % PageTable::ENTRIES
     }
+
+    /// Returns a physical address with the same value. This is only useful when dealing with parts
+    /// of the kernel address space that are identity-mapped to physical memory.
+    pub fn as_phys(&self) -> PhysAddr {
+        PhysAddr(self.0)
+    }
+
+    /// Returns a pointer to this address.
+    pub fn as_ptr<T>(&self) -> *mut T {
+        self.0 as *mut T
+    }
 }
 
 /// Physical address wrapper.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PhysAddr(u32);
 
@@ -160,6 +171,10 @@ impl PhysAddr {
 macro_rules! impl_addr {
     ($name:ident) => {
         impl $name {
+            pub fn from_ptr<T>(ptr: *const T) -> Self {
+                Self(ptr as u32)
+            }
+
             /// Returns the raw u32 address value.
             pub const fn as_u32(&self) -> u32 {
                 self.0
@@ -190,6 +205,11 @@ macro_rules! impl_addr {
             /// page-aligned.
             pub fn page_align_up(&self) -> Self {
                 Self(self.0.wrapping_add(paging::PAGE_SIZE as u32 - 1) & paging::PAGE_MASK)
+            }
+
+            /// Adds an unsigned offset to an address. Panics if the resulting address wraps around.
+            pub const fn add(&self, count: usize) -> Self {
+                Self(self.0 + count as u32)
             }
         }
 

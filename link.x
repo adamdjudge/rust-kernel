@@ -16,8 +16,9 @@ SECTIONS
         *(.rodata .rodata.*)
     }
 
-    .data :
+    .data ALIGN(4K) :
     {
+        __kernel_rw = .;
         *(.data .data.*)
     }
 
