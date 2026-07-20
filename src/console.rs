@@ -1,7 +1,7 @@
 use core::mem;
 
 use crate::sync::Mutex;
-use crate::x86::port::PortU8;
+use crate::arch::x86::port::PortU8;
 
 /// Console width in characters.
 pub const WIDTH: usize = 80;

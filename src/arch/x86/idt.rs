@@ -1,8 +1,8 @@
 use core::arch::asm;
 use core::fmt;
 
-use crate::x86::registers::eflags::Eflags;
-use crate::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
+use crate::arch::x86::registers::eflags::Eflags;
+use crate::arch::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
 
 /// The Interrupt Descriptor Table, which contains an array of interrupt/trap gates specifying
 /// handlers for CPU exceptions and external interrupts.
@@ -291,8 +291,8 @@ impl fmt::Debug for InterruptFrame {
 /// The provided exception handler should have the signature `extern C fn(&InterruptFrame)`.
 macro_rules! exception_handler {
     ($func:ident) => {{
-        use crate::x86::SegmentSelector;
-        use crate::x86::idt::IdtEntry;
+        use crate::arch::x86::SegmentSelector;
+        use crate::arch::x86::idt::IdtEntry;
 
         #[unsafe(naked)]
         extern "C" fn wrapper() -> ! {
@@ -345,8 +345,8 @@ pub(crate) use exception_handler;
 /// The provided exception handler should have the signature `extern C fn(&InterruptFrame)`.
 macro_rules! exception_with_error_handler {
     ($func:ident) => {{
-        use crate::x86::SegmentSelector;
-        use crate::x86::idt::IdtEntry;
+        use crate::arch::x86::SegmentSelector;
+        use crate::arch::x86::idt::IdtEntry;
 
         #[unsafe(naked)]
         extern "C" fn wrapper() -> ! {
@@ -398,8 +398,8 @@ pub(crate) use exception_with_error_handler;
 /// virtual address that triggered the page fault.
 macro_rules! page_fault_handler {
     ($func:ident) => {{
-        use crate::x86::SegmentSelector;
-        use crate::x86::idt::IdtEntry;
+        use crate::arch::x86::SegmentSelector;
+        use crate::arch::x86::idt::IdtEntry;
 
         #[unsafe(naked)]
         extern "C" fn wrapper() -> ! {
@@ -462,8 +462,8 @@ pub(crate) use page_fault_handler;
 /// The provided exception handler should have the signature `extern C fn(&InterruptFrame)`.
 macro_rules! interrupt_handler {
     ($func:ident) => {{
-        use crate::x86::SegmentSelector;
-        use crate::x86::idt::IdtEntry;
+        use crate::arch::x86::SegmentSelector;
+        use crate::arch::x86::idt::IdtEntry;
 
         #[unsafe(naked)]
         extern "C" fn wrapper() -> ! {

@@ -1,9 +1,6 @@
 use core::fmt;
 use core::mem::{offset_of, transmute};
 
-use crate::x86::gdt::GlobalDescriptorTable;
-use crate::x86::paging::PageTable;
-
 pub mod chipset;
 pub mod gdt;
 pub mod idt;
@@ -11,6 +8,9 @@ pub mod instructions;
 pub mod paging;
 pub mod port;
 pub mod registers;
+
+use crate::arch::x86::gdt::GlobalDescriptorTable;
+use crate::arch::x86::paging::PageTable;
 
 /// CPU privilege level. Ring 0 is used by the kernel and ring 3 is used by userspace.
 #[derive(Clone, Copy, PartialEq, Eq)]

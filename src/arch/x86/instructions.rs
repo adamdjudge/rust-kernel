@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use crate::x86::SegmentSelector;
+use crate::arch::x86::SegmentSelector;
 
 #[inline]
 pub fn hlt() {

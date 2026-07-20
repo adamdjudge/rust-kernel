@@ -1,7 +1,7 @@
 use core::fmt;
 use core::ops::{Index, IndexMut};
 
-use crate::x86::{PhysAddr, VirtAddr};
+use crate::arch::x86::{PhysAddr, VirtAddr};
 
 /// Page size in bytes.
 pub const PAGE_SIZE: usize = 4096;
@@ -149,7 +149,7 @@ impl IndexMut<usize> for PageTable {
 
 /// A range of pages covered by a virtual address range. This includes all pages containing virtual
 /// addresses where `base <= addr < top`.
-/// 
+///
 /// When converted to a `PageRangeIterator`, this iterator yields the base virtual address of each
 /// page covered by the range.
 pub struct PageRange {

@@ -2,7 +2,7 @@
 
 /// Control over the Programmable Interrupt Controllers (PICs).
 pub mod pic {
-    use crate::x86::port::PortU8;
+    use crate::arch::x86::port::PortU8;
 
     const PRIMARY_CMD: PortU8 = PortU8::new(0x20);
     const PRIMARY_DATA: PortU8 = PortU8::new(0x21);
@@ -62,7 +62,7 @@ pub mod pic {
 
 /// Control over the Programmable Interval Timer (PIT).
 pub mod pit {
-    use crate::x86::port::PortU8;
+    use crate::arch::x86::port::PortU8;
 
     const DATA: PortU8 = PortU8::new(0x40);
     const CMD: PortU8 = PortU8::new(0x43);

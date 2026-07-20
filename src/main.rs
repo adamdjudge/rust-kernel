@@ -1,21 +1,21 @@
 #![no_std]
 #![no_main]
 
+mod arch;
 mod console;
 mod log;
 mod mm;
 mod sync;
-mod x86;
 
 use core::arch::global_asm;
 use core::panic::PanicInfo;
 
 use crate::sync::LazyInit;
-use crate::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
-use crate::x86::idt::{exception_handler, interrupt_handler, page_fault_handler};
-use crate::x86::idt::{InterruptDescriptorTable, InterruptFrame};
-use crate::x86::instructions::{cli, hlt, sti};
-use crate::x86::{PrivilegeLevel, VirtAddr};
+use crate::arch::x86::gdt::{GdtEntry, GlobalDescriptorTable, TaskStateSegment};
+use crate::arch::x86::idt::{exception_handler, interrupt_handler, page_fault_handler};
+use crate::arch::x86::idt::{InterruptDescriptorTable, InterruptFrame};
+use crate::arch::x86::instructions::{cli, hlt, sti};
+use crate::arch::x86::{PrivilegeLevel, VirtAddr};
 
 // The entry point to the kernel from the bootloader. Here we clear out the BSS and setup a stack
 // for the rest of the initialization code, and then jump to the Rust main function.
@@ -84,7 +84,7 @@ extern "C" fn timer_handler(_: &InterruptFrame) {
         log_info!("timer interrupt!");
     }
 
-    x86::chipset::pic::end_of_interrupt(0);
+    arch::x86::chipset::pic::end_of_interrupt(0);
 }
 
 #[unsafe(no_mangle)]
@@ -96,8 +96,8 @@ fn main() -> ! {
     mm::init();
     console::clear();
 
-    x86::chipset::pic::init();
-    x86::chipset::pit::set_rate(1000);
+    arch::x86::chipset::pic::init();
+    arch::x86::chipset::pit::set_rate(1000);
 
     log_info!("Hello from Rust kernel!");
 

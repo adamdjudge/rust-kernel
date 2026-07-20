@@ -1,7 +1,5 @@
-use crate::x86::{
-    paging::{PageRange, PageTable, PageTableEntry},
-    registers, PhysAddr, VirtAddr,
-};
+use crate::arch::x86::registers;
+use crate::arch::{PageRange, PageTable, PageTableEntry, PhysAddr, VirtAddr};
 
 /// Base address of the kernel heap.
 pub const HEAP_BASE: VirtAddr = VirtAddr::new(0x04000000);
@@ -72,7 +70,7 @@ pub fn init() {
     ///
     /// Entry 2 is mapped to `FRAME_STACK_PAGE_TABLE`, which maps the stack of free physical page
     /// frames to 0x00800000 - 0x00bfffff (4 MiB).
-    /// 
+    ///
     /// Entries 16 - 31 are mapped to `HEAP_PAGE_TABLES`, which maps the kernel heap to 0x04000000 -
     /// 0x07ffffff (64 MiB).
     ///

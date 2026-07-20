@@ -263,7 +263,7 @@ pub mod cr0 {
 pub mod cr2 {
     use core::arch::asm;
 
-    use crate::x86::VirtAddr;
+    use crate::arch::x86::VirtAddr;
 
     /// Reads the `CR2` register and returns its virtual address value.
     pub fn read() -> VirtAddr {
@@ -284,7 +284,7 @@ pub mod cr2 {
 pub mod cr3 {
     use core::arch::asm;
 
-    use crate::x86::PhysAddr;
+    use crate::arch::x86::PhysAddr;
 
     /// Reads the `CR3` register and returns its physical address value.
     pub fn read() -> PhysAddr {

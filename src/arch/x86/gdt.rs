@@ -1,7 +1,7 @@
 use core::arch::asm;
 use core::mem::{offset_of, size_of};
 
-use crate::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
+use crate::arch::x86::{PrivilegeLevel, SegmentSelector, VirtAddr};
 
 /// Entry in the Global Descriptor Table specifying a protected mode segment.
 #[repr(C)]
@@ -142,6 +142,6 @@ impl TaskStateSegment {
 
     /// Uses the ltr instruction to load the task state segment.
     pub fn load(&'static self) {
-        crate::x86::instructions::ltr(SegmentSelector::tss());
+        crate::arch::x86::instructions::ltr(SegmentSelector::tss());
     }
 }
