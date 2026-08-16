@@ -19,4 +19,3 @@ panic = "abort"
 [dependencies]
 
 [features]
-x86 = []
