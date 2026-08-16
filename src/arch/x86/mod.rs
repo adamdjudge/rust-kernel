@@ -8,6 +8,7 @@ pub mod instructions;
 pub mod paging;
 pub mod port;
 pub mod registers;
+mod start;
 
 use crate::arch::x86::gdt::GlobalDescriptorTable;
 use crate::arch::x86::paging::PageTable;

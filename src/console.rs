@@ -1,7 +1,7 @@
 use core::mem;
 
-use crate::sync::Mutex;
 use crate::arch::x86::port::PortU8;
+use crate::sync::Mutex;
 
 /// Console width in characters.
 pub const WIDTH: usize = 80;
@@ -142,7 +142,7 @@ impl Writer {
 
     /// Clears the console by removing all text and setting the default colors.
     fn clear_screen(&mut self) {
-        self.position = 0;
+        let _ = self.set_position(0);
         self.set_text_color(Color::LightGray);
         self.set_bg_color(Color::Black);
         VgaBuffer::get().chars.fill(VgaChar {
